@@ -1,0 +1,1109 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<!--
+  AI Agent & Developer Notice:
+  This site provides a CORS-enabled batch WHOIS API endpoint:
+  - Endpoint: POST /api/check
+  - Payload: { "domains": ["apple.ai", "banana.co"] } (Max 60)
+  - Response: JSON array of domain registration availability states.
+  For full OpenAPI specs, schema and AI prompt guidelines, scroll to the developer guide details in this file.
+-->
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>批量域名查询工具 - 批量后缀/自定义规则生成 - 支持AABB/豹子域名筛选</title>
+<meta name="description" content="高效、安全的开源批量域名查询工具。支持900+域名后缀批量组合，支持[a-z]、AABB、ABAB、豹子、顺子等自定义正则规则批量生成，提供一键复制与CSV导出，满足域名投资人与开发者的批量检测需求。" />
+<meta name="keywords" content="域名查询,批量域名查询,域名组合生成,AABB域名,豹子域名,域名注册查询,WHOIS查询,域名工具,quyu" />
+<meta name="robots" content="index, follow" />
+<meta property="og:title" content="批量域名查询工具 - 批量后缀与自定义正则规则生成" />
+<meta property="og:description" content="支持900+后缀与自定义AABB/豹子等正则规则的高效批量域名可用性检测工具。" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>">
+<style>
+  :root{
+    --brand:#10b981; --brand-d:#059669; --brand-l:#ecfdf5;
+    --ink:#0f172a; --ink-2:#475569; --ink-3:#94a3b8;
+    --line:#e2e8f0; --bg:#f8fafc; --card:#fff;
+    --amber:#f59e0b; --rose:#f43f5e; --violet:#8b5cf6; --slate:#94a3b8;
+    --r:14px; --shadow:0 1px 2px rgba(15,23,42,.06),0 8px 24px -12px rgba(15,23,42,.12);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink-2);
+    font-family:'PingFang SC','Microsoft YaHei',system-ui,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-feature-settings:'tnum' 1;-webkit-font-smoothing:antialiased;line-height:1.5}
+  .mono{font-family:ui-monospace,'SF Mono','JetBrains Mono',Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+  .tnum{font-variant-numeric:tabular-nums}
+  a{color:var(--brand-d)}
+
+  /* 布局 */
+  .wrap{max-width:960px;margin:0 auto;padding:0 16px 64px}
+  header.top{padding:22px 0 14px;display:flex;align-items:center;gap:10px}
+  .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--brand),var(--brand-d));
+    display:grid;place-items:center;color:#fff;font-weight:800;font-size:18px;box-shadow:0 6px 16px -6px var(--brand)}
+  header.top h1{font-size:18px;margin:0;color:var(--ink);font-weight:700}
+  header.top .sub{font-size:12px;color:var(--ink-3)}
+  .badge{margin-left:auto;font-size:12px;color:var(--brand-d);background:var(--brand-l);
+    border:1px solid #bbf7d0;border-radius:999px;padding:5px 12px;font-weight:600}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:18px;margin-top:16px}
+  .card h2{font-size:14px;margin:0 0 12px;color:var(--ink);font-weight:700;display:flex;align-items:center;gap:8px}
+  .step{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;background:var(--ink);color:#fff;font-size:12px;font-weight:700}
+
+  /* 生成器 */
+  .gen{border:1px dashed #c7e9d8;background:linear-gradient(180deg,#f0fdf8,#fff);border-radius:12px;padding:12px;margin-bottom:14px}
+  .gen .gh{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--brand-d);margin-bottom:9px}
+  .gen .gh small{font-weight:500;color:var(--ink-3)}
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{border:1px solid var(--line);background:#fff;color:var(--ink-2);border-radius:999px;
+    padding:5px 12px;font-size:12.5px;cursor:pointer;transition:.15s;white-space:nowrap;font-weight:500}
+  .chip:hover{border-color:var(--brand);color:var(--brand-d);background:var(--brand-l)}
+  .chip.kind{background:#fff7ed;border-color:#fed7aa;color:#c2410c}
+  .chip.kind:hover{background:#ffedd5}
+  .chip.on{border-color:var(--brand);background:var(--brand);color:#fff;font-weight:600}
+  .flabel{font-size:12.5px;color:var(--ink-3)}
+  .gen .row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .gen input{flex:1;min-width:200px;height:38px;border:1px solid var(--line);border-radius:9px;padding:0 12px;
+    font-size:13px;outline:none;background:#fff}
+  .gen input:focus{border-color:var(--brand)}
+  .gen .legend{font-size:11.5px;color:var(--ink-3);margin-top:8px;line-height:1.7}
+  .gen .legend code{background:#f1f5f9;border-radius:4px;padding:1px 5px;color:var(--ink-2)}
+  .gen .note{font-size:12px;margin-top:8px}
+  .gen .note.warn{color:var(--amber)} .gen .note.err{color:var(--rose)} .gen .note.ok{color:var(--brand-d)}
+
+  textarea{width:100%;min-height:130px;resize:vertical;border:1px solid var(--line);border-radius:11px;
+    padding:12px 14px;font-size:13.5px;line-height:1.7;outline:none;background:#fff;color:var(--ink)}
+  textarea:focus{border-color:var(--brand)}
+  .meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;font-size:12.5px;color:var(--ink-3);margin-top:9px}
+  .meta b{color:var(--brand-d)} .meta .over{color:var(--brand-d)}
+  .meta .clr{margin-left:auto;color:var(--ink-3);cursor:pointer;border:none;background:none;font-size:12.5px}
+  .meta .clr:hover{color:var(--rose)}
+
+  /* 后缀选择 */
+  .filters{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-bottom:10px}
+  .seg{display:inline-flex;gap:4px;background:#f1f5f9;border-radius:10px;padding:3px}
+  .seg button{border:none;background:none;padding:5px 12px;border-radius:8px;font-size:13px;cursor:pointer;color:var(--ink-2);font-weight:500}
+  .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08);font-weight:600}
+  .filters .grow{flex:1}
+  .ipt{height:34px;border:1px solid var(--line);border-radius:9px;padding:0 10px;font-size:13px;outline:none;background:#f8fafc}
+  .ipt:focus{border-color:var(--brand);background:#fff}
+  .lk{border:none;background:none;color:var(--brand-d);font-weight:600;cursor:pointer;font-size:13px;padding:4px 8px;border-radius:7px}
+  .lk:hover{background:var(--brand-l)}
+  .lk.grey{color:var(--ink-3)} .lk.grey:hover{background:#f1f5f9}
+  .selcount{font-size:13px;color:var(--ink-3)} .selcount b{color:var(--brand-d)}
+  label.chk{display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--ink-2);cursor:pointer}
+
+  .tld-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px;max-height:340px;
+    overflow:auto;padding:2px;margin-top:4px}
+  .tld{border:1px solid var(--line);background:#fff;border-radius:11px;padding:8px 10px;cursor:pointer;
+    display:flex;justify-content:space-between;align-items:flex-start;gap:4px;transition:.12s;text-align:left}
+  .tld:hover{border-color:var(--brand);background:#f6fefb}
+  .tld.on{border-color:var(--brand);background:var(--brand-l);box-shadow:inset 0 0 0 1px var(--brand)}
+  .tld .t{font-weight:700;font-size:13px;color:var(--ink)}
+  .tld.on .t{color:var(--brand-d)}
+  .tld .p{font-size:11.5px;color:var(--ink-3)}
+  .tld .p .old{text-decoration:line-through;color:#cbd5e1;margin-right:3px}
+  .tld .p .promo{color:var(--rose);font-weight:600}
+  .tg{display:flex;flex-direction:column;gap:2px;align-items:flex-end}
+  .tag{font-size:9.5px;font-weight:800;border-radius:4px;padding:1px 4px;line-height:1.4}
+  .tag.hot{background:#ffe4e6;color:#e11d48} .tag.promo{background:#fef3c7;color:#b45309}
+  .expand{width:100%;margin-top:10px;border:1px dashed var(--line);background:none;border-radius:9px;
+    padding:9px;color:var(--ink-3);cursor:pointer;font-size:13px}
+  .expand:hover{border-color:var(--brand);color:var(--brand-d)}
+
+  /* 查询按钮 */
+  .go{display:flex;justify-content:center;margin-top:18px}
+  .btn{display:inline-flex;align-items:center;gap:8px;border:none;cursor:pointer;border-radius:11px;
+    font-size:15px;font-weight:700;padding:0 30px;height:48px;color:#fff;
+    background:linear-gradient(135deg,var(--brand),var(--brand-d));box-shadow:0 10px 24px -10px var(--brand);transition:.15s}
+  .btn:hover{filter:brightness(1.05)} .btn:active{transform:scale(.98)}
+  .btn:disabled{background:#cbd5e1;box-shadow:none;cursor:not-allowed}
+  .spin{width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  /* 结果 */
+  .counts{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+  #progress{font-size:12.5px;color:var(--brand-d);background:var(--brand-l);border:1px solid #bbf7d0;border-radius:9px;padding:7px 12px;margin-bottom:12px}
+  .cnt{flex:1;min-width:88px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:#fff}
+  .cnt .n{font-size:20px;font-weight:800;color:var(--ink)} .cnt .l{font-size:11.5px;color:var(--ink-3)}
+  .cnt.ok .n{color:var(--brand-d)} .cnt.no .n{color:var(--slate)} .cnt.to .n{color:var(--amber)} .cnt.w .n{color:var(--ink-2)}
+  .group-title{font-size:13px;font-weight:700;color:var(--ink);margin:14px 0 8px;display:flex;align-items:center;gap:7px}
+  .dot{width:8px;height:8px;border-radius:50%}
+  .res-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:9px}
+  .rc{border:1px solid var(--line);border-radius:11px;padding:11px 13px;background:#fff;display:flex;justify-content:space-between;align-items:center;gap:8px;animation:fu .3s ease both}
+  .rc.av{border-color:#a7f3d0;background:linear-gradient(180deg,#f0fdf8,#fff)}
+  @keyframes fu{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+  .rc .dn{font-weight:700;color:var(--ink);font-size:14px}
+  .rc .pr{font-size:12px;color:var(--ink-3);margin-top:2px}
+  .rc .pr .now{color:var(--brand-d);font-weight:700;font-size:13px} .rc .pr .old{text-decoration:line-through;color:#cbd5e1;margin-right:4px}
+  .pill{font-size:10px;font-weight:800;border-radius:5px;padding:2px 6px;background:#f5f3ff;color:var(--violet);margin-left:6px}
+  .taken{display:flex;flex-wrap:wrap;gap:7px}
+  .tk{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:9px;padding:6px 11px;background:#f8fafc;font-size:13px}
+  .tk .dn{color:var(--ink-2);font-weight:600} .tk.to{background:#fffbeb;border-color:#fde68a}
+  .tk .st{font-size:11px;color:var(--slate)} .tk.to .st{color:var(--amber)}
+  .tk .retry{border:none;background:none;color:var(--amber);cursor:pointer;font-size:12px;font-weight:700;text-decoration:underline}
+  #summary{font-size:13px;color:var(--ink-2);padding:8px 0}
+  #availMore{font-size:12px;color:var(--ink-3);margin-top:8px}
+  #timeoutList{padding-top:6px}
+  .empty{text-align:center;color:var(--ink-3);padding:34px 0;font-size:13.5px}
+
+  footer{text-align:center;color:var(--ink-3);font-size:12px;margin-top:26px;line-height:1.8}
+  .hide{display:none!important}
+  @media (max-width:560px){ .card{padding:14px} header.top .sub{display:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="logo">域</div>
+    <div>
+      <h1>批量域名查询工具</h1>
+      <div class="sub">批量后缀 · 规则生成 · 一次查多个是否可注册</div>
+    </div>
+    <span class="badge" id="tldBadge">925+ 后缀</span>
+  </header>
+
+  <!-- 1. 输入 + 规则生成 -->
+  <section class="card">
+    <h2><span class="step">1</span> 输入域名 / 关键词</h2>
+
+    <div class="gen">
+      <div class="gh">✦ 规则生成 <small>点预设一键生成，或自己写正则；结果填入下方，再勾后缀查询</small></div>
+      <div class="chips" id="presets"></div>
+      <div class="row">
+        <input id="patIpt" class="mono" placeholder="自定义正则，如 (get|my)[a-z]{3}" />
+        <button class="chip" id="genBtn" style="padding:0 16px;font-weight:600">生成</button>
+      </div>
+      <div class="legend">
+        语法：<code>[a-z]</code> <code>[0-9]</code> <code>[abc]</code> 字符集 ·
+        <code>\d</code>=数字 <code>\a</code>=字母 <code>\w</code>=字母数字 ·
+        <code>{3}</code>/<code>{1,3}</code> 重复 · <code>(a|b|c)</code> 任选 ·
+        <code>(\d)\1</code> 同位重复（豹子/AABB）· 其余按字面量
+      </div>
+      <div class="note" id="genNote"></div>
+    </div>
+
+    <textarea id="input" spellcheck="false" placeholder="每行一个域名或关键词，例如：&#10;mycompany&#10;brandname&#10;example.ai&#10;&#10;关键词会与下方勾选的后缀自动组合后批量查询。"></textarea>
+    <div class="meta">
+      <span><b id="kwCount">0</b> 个关键词 · 预计查询 <b id="domCount">0</b> 个域名</span>
+      <span class="over hide" id="overTip"></span>
+      <button class="clr" id="clearBtn">清空</button>
+    </div>
+  </section>
+
+  <!-- 2. 后缀选择 -->
+  <section class="card">
+    <h2><span class="step">2</span> 选择后缀（多选）</h2>
+    <div class="filters">
+      <div class="seg" id="catSeg"></div>
+    </div>
+    <div class="filters hide" id="regionRow">
+      <div class="seg" id="regionSeg"></div>
+    </div>
+    <div class="filters" id="featRow">
+      <span class="flabel">特性</span>
+      <button class="chip" data-feat="promo">促销</button>
+      <button class="chip" data-feat="free">自由过户</button>
+      <button class="chip" data-feat="service">提供信托</button>
+      <span class="flabel" style="margin-left:8px">支持字符</span>
+      <div class="seg" id="charSeg"></div>
+    </div>
+    <div class="filters">
+      <input class="ipt" id="kwFilter" placeholder="筛选后缀，如 ai" style="width:130px" />
+      <input class="ipt tnum" id="priceMin" type="number" placeholder="¥最低" style="width:84px" />
+      <span style="color:var(--ink-3)">–</span>
+      <input class="ipt tnum" id="priceMax" type="number" placeholder="¥最高" style="width:84px" />
+      <span class="grow"></span>
+      <span class="selcount">已选 <b id="selCount">0</b> · 共 <span id="filtCount">0</span></span>
+      <button class="lk" id="selAll">全选</button>
+      <button class="lk grey" id="clrTld">清空</button>
+    </div>
+    <div class="tld-grid" id="tldGrid"></div>
+    <button class="expand hide" id="expandBtn"></button>
+  </section>
+
+  <div class="go">
+    <button class="btn" id="queryBtn">查询域名</button>
+  </div>
+
+  <!-- 3. 结果 -->
+  <section class="card" id="resultCard">
+    <h2 style="flex-wrap:wrap">
+      <span class="step">3</span> 查询结果
+    </h2>
+    <div class="counts hide" id="counts">
+      <div class="cnt ok"><div class="n" id="cAv">0</div><div class="l">可注册</div></div>
+      <div class="cnt no"><div class="n" id="cNo">0</div><div class="l">已注册</div></div>
+      <div class="cnt to"><div class="n" id="cTo">0</div><div class="l">超时</div></div>
+      <div class="cnt w"><div class="n" id="cWa">0</div><div class="l">查询中</div></div>
+    </div>
+    <div id="progress" class="hide"></div>
+    <div id="resultBody">
+      <div class="empty" id="emptyState">输入域名、勾选后缀，点上方「查询域名」开始。</div>
+      <div id="availWrap" class="hide">
+        <div class="group-title">
+          <span class="dot" style="background:var(--brand)"></span>可注册 <span id="avN">0</span>
+          <span style="margin-left:auto;display:inline-flex;gap:6px">
+            <button class="lk" id="copyAvail">复制</button>
+            <button class="lk" id="exportAvail">导出 CSV</button>
+          </span>
+        </div>
+        <div class="res-grid" id="availList"></div>
+        <div id="availMore" class="hide"></div>
+      </div>
+      <div id="takenWrap" class="hide" style="margin-top:16px;border-top:1px dashed var(--line);padding-top:12px">
+        <div class="group-title" style="color:var(--ink-3)">
+          <span class="dot" style="background:var(--slate)"></span>已注册域名 <span id="takenMore" style="font-weight:normal;font-size:12px;color:var(--ink-3)"></span>
+        </div>
+        <div class="taken" id="takenList"></div>
+      </div>
+      <div id="timeoutWrap" class="hide" style="margin-top:16px;border-top:1px dashed var(--line);padding-top:12px">
+        <div class="group-title" style="color:var(--amber)">
+          <span class="dot" style="background:var(--amber)"></span>查询超时域名 <span style="font-weight:normal;font-size:12px;color:var(--ink-3)">（可单独重试，或一键重试）</span>
+          <span style="margin-left:auto"><button class="lk" id="retryAllTo" style="color:var(--amber);white-space:nowrap;padding:4px 8px;border:1px solid #fee2e2;border-radius:6px;background:#fff">批量重试</button></span>
+        </div>
+        <div class="taken" id="timeoutList"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. AI Agent / 接口开发指南 -->
+  <section class="card">
+    <details style="cursor:pointer">
+      <summary style="font-weight:700;font-size:14px;color:var(--ink);user-select:none">✦ AI Agent 智能体 & API 接口调用指南</summary>
+      <div style="margin-top:10px;font-size:13.5px;line-height:1.7;color:var(--ink-2);cursor:default" onclick="event.stopPropagation()">
+        <p>本系统支持 AI 智能体（Agent）或自定义脚本直接发起批量域名查询。由于后端 Worker 已自动处理了 Session 维持和 CORS 跨域，调用方<b>无需关注 Cookie 或 Referer 伪装</b>，直接向本服务接口发送标准请求即可：</p>
+
+        <p><b>1. 接口规范</b></p>
+        <ul>
+          <li><b>接口地址</b>：<code class="mono" id="apiEndpointUrl">/api/check</code></li>
+          <li><b>请求方式</b>：<code class="mono">POST</code></li>
+          <li><b>请求数据类型</b>：<code class="mono">application/json</code></li>
+          <li><b>请求参数</b>（JSON 结构，最大支持 60 个域名）：
+            <pre class="mono" style="background:#f1f5f9;padding:10px;border-radius:8px;font-size:12px;overflow:auto;margin:6px 0">{
+  "domains": ["apple.ai", "banana.io", "google.com"]
+}</pre>
+          </li>
+          <li><b>返回 JSON 结构</b>（接口返回本轮可确认状态；低压策略下暂未确认会返回 timeout，可稍后重试）：
+            <pre class="mono" style="background:#f1f5f9;padding:10px;border-radius:8px;font-size:12px;overflow:auto;margin:6px 0">[
+  {"status":"success","result":"available","domain":"apple.ai"},
+  {"status":"success","result":"unavailable","domain":"banana.io"},
+  {"status":"success","result":"unavailable","domain":"google.com"}
+]</pre>
+          </li>
+        </ul>
+
+        <p><b>2. AI Agent Tool (工具调用) 提示词与架构设计</b></p>
+        <p>在大模型中，您可以直接将本接口声明为如下格式 of Tool：</p>
+        <pre class="mono" style="background:#f1f5f9;padding:10px;border-radius:8px;font-size:11.5px;overflow:auto;margin:6px 0">{
+  "name": "check_domains",
+  "description": "批量查询域名的可用性（是否未注册）。支持输入以逗号分隔的多个域名。",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "domains": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "域名列表数组，例如: [\"getabc.ai\", \"gochat.io\", \"mycode.com\"]"
+      }
+    },
+    "required": ["domains"]
+  }
+}</pre>
+        <p><b>AI 执行策略建议</b>：</p>
+        <ol style="padding-left:18px;margin:6px 0">
+          <li><b>规则翻译</b>：当用户说“我想找个 3 位数字的 .ai 域名”时，大模型应当自动生成全部目标域名列表（如 <code>000.ai, 001.ai, ..., 999.ai</code>）。</li>
+          <li><b>低压调用</b>：大模型或脚本按最多 60 个域名一批调用即可；遇到 <code>timeout</code> 代表本轮暂未确认，建议稍后重试，避免连续高频轮询触发上游限流。</li>
+          <li><b>价值精选</b>：大模型拿到可用（available）域名列表后，可基于自身知识库进行商业价值精选（如优先挑出包含完整单词、纯数字或押韵的域名），提供高质量的推荐理由。</li>
+        </ol>
+
+        <p><b>3. 终端命令行快速查询 (cURL 示例)</b></p>
+        <p>您也可以在本地终端或编写自定义脚本直接通过 <code class="mono">curl</code> 批量查询域名（已自动处理跨域和请求头伪装）：</p>
+        <pre class="mono" style="background:#f1f5f9;padding:10px;border-radius:8px;font-size:12px;overflow:auto;margin:6px 0">curl -X POST <span id="apiCliDomain">http://localhost:5173</span>/api/check \
+  -H "Content-Type: application/json" \
+  -d '{"domains":["apple.ai","google.com","testxyz12345.com"]}'</pre>
+        <p>接口会在云端先执行 DNS 预过滤，再进行低频 WHOIS 查询，以 JSON 格式返回本轮可确认的域名状态。</p>
+      </div>
+    </details>
+  </section>
+
+  <!-- 5. 关于作者 / 反馈 -->
+  <section class="card" style="background:#fafafa;border-style:dashed;margin-top:16px">
+    <h2 style="font-size:13.5px;color:var(--ink-2);margin-bottom:8px">关于作者 & 意见反馈</h2>
+    <div style="font-size:12px;color:var(--ink-3);line-height:1.6">
+      作者邮箱：<a href="mailto:qiushuanglong@hotmail.com" style="color:var(--brand-d)">qiushuanglong@hotmail.com</a><br>
+      GitHub 开源项目：<a href="https://github.com/qiushuanglong/domain-tool" target="_blank" rel="noopener noreferrer" style="color:var(--brand-d)">github.com/qiushuanglong/domain-tool</a><br>
+      如果您有任何想法或遇到了问题，欢迎直接提交 Issue 或者发送邮件反馈，感谢您的支持！
+    </div>
+  </section>
+
+  <footer>
+    本工具仅提供域名可用性查询服务，不进行域名注册。所有查询状态以最终注册结果为准。
+  </footer>
+
+</div>
+
+<script>
+"use strict";
+/* ============================================================================
+ * 批量域名查询工具 —— 纯前端单文件，无框架 / 无构建 / 无依赖。
+ * 两大功能：A 批量后缀查询（主打）  B 自定义规则生成（正则）
+ * 查询数据为本地模拟，但字段严格对齐真实后端，便于日后直接联调。
+ * ==========================================================================*/
+
+/* ---- 后缀数据：925 个真实后缀（抓取自原站，含价格/分类/地区/热促）---- */
+var TLDS = [{"tld":".top","price":12,"originalPrice":null,"region":null,"category":"hot","hot":true,"promo":false,"premium":false},{"tld":".xyz","price":15,"originalPrice":null,"region":null,"category":"hot","hot":true,"promo":false,"premium":false},{"tld":".info","price":19,"originalPrice":null,"region":null,"category":"hot","hot":true,"promo":false,"premium":false},{"tld":".vip","price":25,"originalPrice":null,"region":null,"category":"hot","hot":true,"promo":false,"premium":false},{"tld":".cn","price":29,"originalPrice":null,"region":"AS","category":"hot","hot":true,"promo":false,"premium":false},{"tld":".site","price":29,"originalPrice":null,"region":null,"category":"hot","hot":true,"promo":false,"premium":false},{"tld":".online","price":35,"originalPrice":null,"region":null,"category":"hot","hot":true,"promo":false,"premium":false},{"tld":".ltd","price":39,"originalPrice":65,"region":null,"category":"hot","hot":true,"promo":true,"premium":false},{"tld":".shop","price":39,"originalPrice":null,"region":null,"category":"hot","hot":true,"promo":false,"premium":false},{"tld":".store","price":39,"originalPrice":null,"region":null,"category":"hot","hot":true,"promo":false,"premium":false},{"tld":".work","price":39,"originalPrice":null,"region":null,"category":"hot","hot":true,"promo":false,"premium":false},{"tld":".group","price":49,"originalPrice":null,"region":null,"category":"hot","hot":true,"promo":false,"premium":false},{"tld":".tech","price":49,"originalPrice":null,"region":null,"category":"hot","hot":true,"promo":false,"premium":false},{"tld":".cloud","price":69,"originalPrice":null,"region":null,"category":"hot","hot":true,"promo":false,"premium":false},{"tld":".com","price":69,"originalPrice":null,"region":null,"category":"hot","hot":true,"promo":false,"premium":false},{"tld":".biz","price":79,"originalPrice":null,"region":null,"category":"hot","hot":true,"promo":false,"premium":true},{"tld":".cc","price":79,"originalPrice":null,"region":"OA","category":"hot","hot":true,"promo":false,"premium":false},{"tld":".net","price":79,"originalPrice":null,"region":null,"category":"hot","hot":true,"promo":false,"premium":false},{"tld":".pro","price":79,"originalPrice":null,"region":null,"category":"hot","hot":true,"promo":false,"premium":false},{"tld":".org","price":85,"originalPrice":125,"region":null,"category":"hot","hot":true,"promo":true,"premium":false},{"tld":".app","price":99,"originalPrice":166,"region":null,"category":"hot","hot":true,"promo":true,"premium":false},{"tld":".dev","price":99,"originalPrice":null,"region":null,"category":"hot","hot":true,"promo":false,"premium":false},{"tld":".me","price":99,"originalPrice":null,"region":"EU","category":"hot","hot":true,"promo":false,"premium":false},{"tld":".co","price":188,"originalPrice":null,"region":"NA","category":"hot","hot":true,"promo":false,"premium":false},{"tld":".tv","price":199,"originalPrice":null,"region":"OA","category":"hot","hot":true,"promo":false,"premium":false},{"tld":".io","price":299,"originalPrice":null,"region":null,"category":"hot","hot":true,"promo":false,"premium":false},{"tld":".ai","price":588,"originalPrice":null,"region":null,"category":"hot","hot":true,"promo":false,"premium":false},{"tld":".bet","price":9,"originalPrice":13,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".bi","price":9,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".by","price":9,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".cv","price":9,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".fit","price":9,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".gay","price":9,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".kn","price":9,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".md","price":9,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".mobi","price":9,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".onl","price":9,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".ooo","price":9,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":true},{"tld":".ps","price":9,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".pub","price":9,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".red","price":9,"originalPrice":13,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".rip","price":9,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".srl","price":9,"originalPrice":17,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".sv","price":9,"originalPrice":16,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".vu","price":9,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".you","price":9,"originalPrice":13,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".bb","price":15,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".gy","price":15,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".nf","price":15,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".sm","price":15,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".td","price":15,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".tt","price":15,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".gd","price":19,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".hm","price":19,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".la","price":19,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".lat","price":19,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".mr","price":19,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".pet","price":19,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".vc","price":19,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".vin","price":19,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".bh","price":25,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".bio","price":25,"originalPrice":42,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".gs","price":25,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".inc","price":25,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".now","price":25,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".pr","price":25,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".sbs","price":25,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".bid","price":29,"originalPrice":45,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".cfd","price":29,"originalPrice":43,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".esq","price":29,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".gdn","price":29,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".moe","price":29,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".na","price":29,"originalPrice":46,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".tc","price":29,"originalPrice":53,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".vet","price":29,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".vi","price":29,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".wtf","price":29,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".ag","price":39,"originalPrice":64,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".aw","price":39,"originalPrice":71,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".ge","price":39,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".ki","price":39,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".ms","price":39,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".one","price":39,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".uno","price":39,"originalPrice":72,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".cd","price":49,"originalPrice":85,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".dad","price":49,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".dm","price":49,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".eco","price":49,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".fun","price":49,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".gp","price":49,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".llc","price":49,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".mv","price":49,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".sd","price":49,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".ski","price":49,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".st","price":49,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".tax","price":49,"originalPrice":93,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".tm","price":49,"originalPrice":95,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".vg","price":49,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".am","price":69,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".boo","price":69,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".day","price":69,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".mba","price":69,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".spa","price":69,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".ax","price":79,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".cam","price":79,"originalPrice":145,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".et","price":79,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".eus","price":79,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".fm","price":79,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".hot","price":79,"originalPrice":152,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".kim","price":79,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":true},{"tld":".ml","price":79,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".ne","price":79,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".tg","price":79,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".xin","price":79,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".zip","price":79,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".ac","price":99,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".as","price":99,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".bj","price":99,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".bz","price":99,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".fyi","price":99,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":true},{"tld":".ga","price":99,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":true},{"tld":".men","price":99,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".mw","price":99,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".su","price":99,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".tl","price":99,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".art","price":129,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".cx","price":129,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".fan","price":129,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".gl","price":129,"originalPrice":240,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".ly","price":129,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".name","price":129,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".rw","price":129,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".sh","price":129,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".soy","price":129,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".sx","price":129,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".tel","price":129,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".cab","price":199,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".car","price":199,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".dog","price":199,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".ink","price":199,"originalPrice":348,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".kg","price":199,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".med","price":199,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".mov","price":199,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".so","price":199,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".ad","price":299,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".gf","price":299,"originalPrice":586,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".icu","price":299,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".je","price":299,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".lc","price":299,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".lol","price":299,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".ls","price":299,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".mom","price":299,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".mp","price":299,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":true},{"tld":".ni","price":299,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".pw","price":299,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".sb","price":299,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".sr","price":299,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".bf","price":399,"originalPrice":658,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".bzh","price":399,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".cat","price":399,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".foo","price":399,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".ht","price":399,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".mk","price":399,"originalPrice":595,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".new","price":399,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".nr","price":399,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".sex","price":399,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".sy","price":399,"originalPrice":642,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".win","price":399,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".xxx","price":399,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".az","price":588,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".bar","price":588,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".bot","price":588,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".bs","price":588,"originalPrice":906,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".ceo","price":588,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".fo","price":588,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".mn","price":588,"originalPrice":906,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".nrw","price":588,"originalPrice":835,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".ren","price":588,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":true},{"tld":".run","price":588,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".sl","price":588,"originalPrice":1070,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".diy","price":888,"originalPrice":1625,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".dj","price":888,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".gg","price":888,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".hn","price":888,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":true},{"tld":".how","price":888,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".im","price":888,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".ing","price":888,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".ist","price":888,"originalPrice":1554,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".law","price":888,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".mq","price":888,"originalPrice":1554,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".phd","price":888,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".sc","price":888,"originalPrice":1661,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".ss","price":888,"originalPrice":1518,"region":null,"category":"generic","hot":false,"promo":true,"premium":false},{"tld":".tj","price":888,"originalPrice":null,"region":null,"category":"generic","hot":false,"promo":false,"premium":false},{"tld":".black","price":9,"originalPrice":15,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".bond","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".boston","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".broker","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".brussels","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".buzz","price":9,"originalPrice":18,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".cards","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".care","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".center","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".claims","price":9,"originalPrice":17,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".com.gi","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.gy","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.ht","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.mk","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".compare","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".construction","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".cool","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".dealer","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".deals","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".dentist","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".diamonds","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".direct","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".financial","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".foundation","price":9,"originalPrice":14,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".garden","price":9,"originalPrice":14,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".gifts","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".green","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".guitars","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".guru","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".kids","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".land","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".nagoya","price":9,"originalPrice":13,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".net.am","price":9,"originalPrice":17,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".place","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".press","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".rentals","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".tattoo","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".team","price":9,"originalPrice":13,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".tools","price":9,"originalPrice":15,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".video","price":9,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".attorney","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".bible","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".blue","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".build","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".chat","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".clothing","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".co.ms","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".co.tt","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".codes","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.gl","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.vc","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".dental","price":15,"originalPrice":22,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".digital","price":15,"originalPrice":25,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".estate","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".fans","price":15,"originalPrice":27,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".forex","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".free","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".gallery","price":15,"originalPrice":25,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".gmbh","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".gold","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".investments","price":15,"originalPrice":28,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".loan","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".media","price":15,"originalPrice":27,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".net.sb","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".network","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".org.am","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".org.pn","price":15,"originalPrice":25,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".parts","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".pink","price":15,"originalPrice":28,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".plumbing","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".plus","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".ru.com","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".space","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".tips","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".town","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".ventures","price":15,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".band","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".cash","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".co.je","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".co.lc","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".co.ls","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.hn","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.im","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.kg","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.kw","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.lb","price":19,"originalPrice":29,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".com.so","price":19,"originalPrice":32,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".com.tj","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".community","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".doctor","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".feedback","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".florist","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".irish","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".makeup","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".management","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".markets","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".net.ag","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".org.gl","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".org.ly","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".organic","price":19,"originalPrice":32,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".pictures","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".rent","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".rodeo","price":19,"originalPrice":29,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".sa.com","price":19,"originalPrice":32,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".singles","price":19,"originalPrice":33,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".social","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".style","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".tennis","price":19,"originalPrice":28,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".tickets","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".trading","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".uk.com","price":19,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".adult","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".asia","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".co.ck","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".co.gg","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".co.im","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.md","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.mt","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.na","price":25,"originalPrice":39,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".com.ps","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.vi","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".de.com","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".degree","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".download","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".email","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".gift","price":25,"originalPrice":42,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".homes","price":25,"originalPrice":46,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".kiwi","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".life","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".lighting","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".live","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".lotto","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".love","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".meme","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".monster","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".movie","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".net.ly","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".observer","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".org.ag","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".org.kg","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".org.so","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".ote.ai","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".review","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".works","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".yachts","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".za.com","price":25,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".bike","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".boats","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".co.com","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".co.gl","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.ki","price":29,"originalPrice":52,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".com.td","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.tt","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".directory","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".engineering","price":29,"originalPrice":43,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".eu.com","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".exchange","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".flights","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".football","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".graphics","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".gripe","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".institute","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".koeln","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".lifestyle","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".loans","price":29,"originalPrice":51,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".miami","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".net.ai","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".net.pn","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".net.sc","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".org.ni","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".org.sb","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".paris","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".photography","price":29,"originalPrice":46,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".photos","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".porn","price":29,"originalPrice":43,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".promo","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".property","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".shiksha","price":29,"originalPrice":51,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".skin","price":29,"originalPrice":41,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".sucks","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".surgery","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".tires","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".tours","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".villas","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".voyage","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".watch","price":29,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".africa","price":39,"originalPrice":66,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".audio","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".baby","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".beauty","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".click","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.af","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.fo","price":39,"originalPrice":69,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".com.gp","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.sl","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".condos","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".design","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".earth","price":39,"originalPrice":58,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".equipment","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".expert","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".faith","price":39,"originalPrice":61,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".fitness","price":39,"originalPrice":74,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".food","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".game","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".kitchen","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".lawyer","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".link","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".net.je","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".net.ni","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".net.ps","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".solutions","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".surf","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".sydney","price":39,"originalPrice":75,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".tokyo","price":39,"originalPrice":66,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".vana","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".wang","price":39,"originalPrice":57,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".wedding","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".wiki","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".zone","price":39,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".agency","price":49,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".bargains","price":49,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".capetown","price":49,"originalPrice":95,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".cleaning","price":49,"originalPrice":85,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".co.bi","price":49,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".co.md","price":49,"originalPrice":93,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".com.pr","price":49,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".creditcard","price":49,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".dating","price":49,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".desi","price":49,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".domains","price":49,"originalPrice":72,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".global","price":49,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".help","price":49,"originalPrice":72,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".jetzt","price":49,"originalPrice":85,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".juegos","price":49,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".lgbt","price":49,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".moda","price":49,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".net.bz","price":49,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".news","price":49,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".off.ai","price":49,"originalPrice":83,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".org.af","price":49,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".restaurant","price":49,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".reviews","price":49,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".solar","price":49,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".supplies","price":49,"originalPrice":85,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".theater","price":49,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".us.com","price":49,"originalPrice":70,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".vodka","price":49,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".club","price":59,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".accountant","price":69,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".blackfriday","price":69,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".career","price":69,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".casa","price":69,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".co.pn","price":69,"originalPrice":129,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".com.sv","price":69,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.tc","price":69,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".contact","price":69,"originalPrice":104,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".cruises","price":69,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".fail","price":69,"originalPrice":126,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".futbol","price":69,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".gives","price":69,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".holiday","price":69,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".international","price":69,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".memorial","price":69,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".net.sd","price":69,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".org.im","price":69,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".pizza","price":69,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".quest","price":69,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".spot","price":69,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".aero","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".army","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".bingo","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".camp","price":79,"originalPrice":142,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".catering","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".channel","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.ag","price":79,"originalPrice":114,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".com.bj","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.bz","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.ms","price":79,"originalPrice":130,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".com.nf","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".company","price":79,"originalPrice":152,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".credit","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".dance","price":79,"originalPrice":139,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".events","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".games","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".joburg","price":79,"originalPrice":130,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".melbourne","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".music","price":79,"originalPrice":111,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".net.im","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".net.kg","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".net.pr","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".net.so","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".org.md","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".org.ps","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".properties","price":79,"originalPrice":130,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".radio","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".recipes","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".repair","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".rsvp","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".rugby","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".se.net","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".show","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".toys","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".watches","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".wine","price":79,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".academy","price":99,"originalPrice":167,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".boutique","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".co.ag","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".cymru","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".cyou","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".delivery","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".education","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".exposed","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".fish","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".furniture","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".hiphop","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".hospital","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".house","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".kaufen","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".locker","price":99,"originalPrice":171,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".museum","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".net.tc","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".okinawa","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".org.hn","price":99,"originalPrice":191,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".qpon","price":99,"originalPrice":144,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".realestate","price":99,"originalPrice":144,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".rehab","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".science","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".select","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".services","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".shoes","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".stream","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".systems","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".taipei","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".viajes","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".wales","price":99,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".world","price":99,"originalPrice":191,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".abogado","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".airforce","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".apartments","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".associates","price":129,"originalPrice":250,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".auction","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".auto","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".bayern","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".br.com","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".camera","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".casino","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".church","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".city","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".co.na","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".co.vi","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".college","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.am","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".democrat","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".forum","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".fund","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".haus","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".horse","price":129,"originalPrice":219,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".immobilien","price":129,"originalPrice":245,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".jp.net","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".menu","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".net.gy","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".org.vc","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".osaka","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".prof","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".realty","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".republican","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".sale","price":129,"originalPrice":245,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".salon","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".soccer","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".study","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".supply","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".tienda","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".today","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".wien","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".yokohama","price":129,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".autos","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".blog","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".builders","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".case","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".cn.com","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".coffee","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.et","price":199,"originalPrice":324,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".com.jm","price":199,"originalPrice":364,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".com.ni","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.sb","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".cooking","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".country","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".farm","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".fashion","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".flowers","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".giving","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".golf","price":199,"originalPrice":348,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".gratis","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".hair","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".host","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".immo","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".industries","price":199,"originalPrice":364,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".lease","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".london","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".market","price":199,"originalPrice":372,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".marketing","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".mortgage","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".net.gl","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".org.ht","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".org.pr","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".reise","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".sarl","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".trade","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".travel","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".yoga","price":199,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".cafe","price":299,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".careers","price":299,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".cheap","price":299,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".co.mz","price":299,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.cy","price":299,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.ge","price":299,"originalPrice":538,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".com.mw","price":299,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.nr","price":299,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.om","price":299,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".computer","price":299,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".coupons","price":299,"originalPrice":431,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".cricket","price":299,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".engineer","price":299,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".hockey","price":299,"originalPrice":526,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".living","price":299,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".luxury","price":299,"originalPrice":419,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".net.gg","price":299,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".net.hn","price":299,"originalPrice":514,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".nexus","price":299,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".org.na","price":299,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".org.tc","price":299,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".pics","price":299,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".software","price":299,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".support","price":299,"originalPrice":419,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".uk.net","price":299,"originalPrice":443,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".webcam","price":299,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".beer","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".best","price":399,"originalPrice":563,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".co.gy","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".co.mw","price":399,"originalPrice":722,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".coach","price":399,"originalPrice":595,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".com.bs","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.ly","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.sd","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".consulting","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".courses","price":399,"originalPrice":595,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".date","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".deal","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".diet","price":399,"originalPrice":674,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".express","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".family","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".gb.net","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".health","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".holdings","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".hosting","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".jewelry","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".luxe","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".money","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".navy","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".net.na","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".org.ai","price":399,"originalPrice":610,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".org.ki","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".party","price":399,"originalPrice":579,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".rest","price":399,"originalPrice":770,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".rich","price":399,"originalPrice":722,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".school","price":399,"originalPrice":770,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".schule","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".taxi","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".technology","price":399,"originalPrice":786,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".training","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".tube","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".university","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".vegas","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".vision","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".voto","price":399,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".accountants","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".actor","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".basketball","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".cars","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".cologne","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.ai","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.bd","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".com.sc","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".discount","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".healthcare","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".legal","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".limo","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".ltda","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".maison","price":588,"originalPrice":906,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".net.ht","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".net.ki","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".net.nf","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".org.sd","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".page","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".partners","price":588,"originalPrice":882,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".poker","price":588,"originalPrice":906,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".ryukyu","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".sexy","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".voting","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".website","price":588,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".ae.org","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".business","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".capital","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".charity","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".christmas","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".clinic","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".co.tj","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.bi","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".com.by","price":888,"originalPrice":1270,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".com.lc","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".contractors","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".energy","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".enterprises","price":888,"originalPrice":1732,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".finance","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".fishing","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".forsale","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".glass","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".guide","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".insure","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".jobs","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".limited","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".motorcycles","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".net.af","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".net.vc","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".ninja","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".photo","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".productions","price":888,"originalPrice":1696,"region":null,"category":"newgtld","hot":false,"promo":true,"premium":false},{"tld":".racing","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".reisen","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".report","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".rocks","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".shopping","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".studio","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":true},{"tld":".vacations","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".vote","price":888,"originalPrice":null,"region":null,"category":"newgtld","hot":false,"promo":false,"premium":false},{"tld":".com.br","price":9,"originalPrice":17,"region":"NA","category":"region","hot":false,"promo":true,"premium":false},{"tld":".com.cu","price":9,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.ec","price":9,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.es","price":9,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.pl","price":9,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.se","price":9,"originalPrice":14,"region":"EU","category":"region","hot":false,"promo":true,"premium":false},{"tld":".do","price":9,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".gr","price":9,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".gr.jp","price":9,"originalPrice":16,"region":"AS","category":"region","hot":false,"promo":true,"premium":false},{"tld":".hk","price":9,"originalPrice":13,"region":"AS","category":"region","hot":false,"promo":true,"premium":false},{"tld":".net.lv","price":9,"originalPrice":15,"region":"EU","category":"region","hot":false,"promo":true,"premium":false},{"tld":".net.my","price":9,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".org.cn","price":9,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".org.pk","price":9,"originalPrice":15,"region":"AS","category":"region","hot":false,"promo":true,"premium":false},{"tld":".org.sn","price":9,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".to","price":9,"originalPrice":null,"region":"OA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".cm","price":15,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".co.ao","price":15,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".co.uk","price":15,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.de","price":15,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":true},{"tld":".com.py","price":15,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".is","price":15,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".ke","price":15,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".ph","price":15,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".ug","price":15,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".bo","price":19,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.au","price":19,"originalPrice":null,"region":"OA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.co","price":19,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.uy","price":19,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".gt","price":19,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".hb.cn","price":19,"originalPrice":36,"region":"AS","category":"region","hot":false,"promo":true,"premium":false},{"tld":".net.cm","price":19,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".net.nz","price":19,"originalPrice":null,"region":"OA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".or.ci","price":19,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".or.mg","price":19,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":true},{"tld":".org.ar","price":19,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".pe","price":19,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".ro","price":19,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".co.jp","price":25,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".co.mg","price":25,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".co.nl","price":25,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".co.ua","price":25,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.do","price":25,"originalPrice":47,"region":"NA","category":"region","hot":false,"promo":true,"premium":false},{"tld":".com.hk","price":25,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".jp","price":25,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".lv","price":25,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".mu","price":25,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".net.pe","price":25,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".nl","price":25,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".org.uk","price":25,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":true},{"tld":".sg","price":25,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".ws","price":25,"originalPrice":null,"region":"OA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".al","price":29,"originalPrice":46,"region":"EU","category":"region","hot":false,"promo":true,"premium":false},{"tld":".co.rs","price":29,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.eg","price":29,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.ph","price":29,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.ug","price":29,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".cz","price":29,"originalPrice":52,"region":"EU","category":"region","hot":false,"promo":true,"premium":false},{"tld":".fi","price":29,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".id","price":29,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".it","price":29,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".kr","price":29,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".lk","price":29,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":true},{"tld":".mx","price":29,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".org.ru","price":29,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".ru","price":29,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":true},{"tld":".co.cm","price":39,"originalPrice":72,"region":"AF","category":"region","hot":false,"promo":true,"premium":false},{"tld":".co.ke","price":39,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".co.nz","price":39,"originalPrice":63,"region":"OA","category":"region","hot":false,"promo":true,"premium":false},{"tld":".co.pt","price":39,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".co.ug","price":39,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.ng","price":39,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.pe","price":39,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".net.cn","price":39,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".nz","price":39,"originalPrice":58,"region":"OA","category":"region","hot":false,"promo":true,"premium":false},{"tld":".pt","price":39,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":true},{"tld":".uk","price":39,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".ar","price":49,"originalPrice":91,"region":"NA","category":"region","hot":false,"promo":true,"premium":false},{"tld":".co.at","price":49,"originalPrice":70,"region":"EU","category":"region","hot":false,"promo":true,"premium":false},{"tld":".co.cz","price":49,"originalPrice":72,"region":"EU","category":"region","hot":false,"promo":true,"premium":false},{"tld":".co.il","price":49,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".co.kr","price":49,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".co.ve","price":49,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".co.za","price":49,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.lv","price":49,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.mu","price":49,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".lu","price":49,"originalPrice":74,"region":"EU","category":"region","hot":false,"promo":true,"premium":false},{"tld":".net.ci","price":49,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".net.ec","price":49,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".org.ng","price":49,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":true},{"tld":".org.pe","price":49,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".ah.cn","price":69,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.al","price":69,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":true},{"tld":".com.lk","price":69,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.mx","price":69,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":true},{"tld":".com.ve","price":69,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":true},{"tld":".my","price":69,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".org.ma","price":69,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".org.ph","price":69,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".org.ug","price":69,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".sk","price":69,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".ba","price":79,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".co.zw","price":79,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.cm","price":79,"originalPrice":120,"region":"AF","category":"region","hot":false,"promo":true,"premium":false},{"tld":".com.pt","price":79,"originalPrice":114,"region":"EU","category":"region","hot":false,"promo":true,"premium":false},{"tld":".in.th","price":79,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".ne.jp","price":79,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".net.au","price":79,"originalPrice":null,"region":"OA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".net.co","price":79,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".net.ma","price":79,"originalPrice":149,"region":"AF","category":"region","hot":false,"promo":true,"premium":false},{"tld":".nu","price":79,"originalPrice":null,"region":"OA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".org.ve","price":79,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".org.za","price":79,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".pk","price":79,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".sn","price":79,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".tw","price":79,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".co.ci","price":99,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".co.si","price":99,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.ar","price":99,"originalPrice":191,"region":"NA","category":"region","hot":false,"promo":true,"premium":false},{"tld":".com.bo","price":99,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.gt","price":99,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.pa","price":99,"originalPrice":163,"region":"NA","category":"region","hot":false,"promo":true,"premium":false},{"tld":".com.ro","price":99,"originalPrice":171,"region":"EU","category":"region","hot":false,"promo":true,"premium":false},{"tld":".lt","price":99,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".me.uk","price":99,"originalPrice":155,"region":"EU","category":"region","hot":false,"promo":true,"premium":false},{"tld":".mg","price":99,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".net.ve","price":99,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".net.za","price":99,"originalPrice":175,"region":"AF","category":"region","hot":false,"promo":true,"premium":false},{"tld":".or.at","price":99,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".se","price":99,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".bg","price":129,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".ch","price":129,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".co.zm","price":129,"originalPrice":188,"region":"AF","category":"region","hot":false,"promo":true,"premium":false},{"tld":".com.my","price":129,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.nl","price":129,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.sg","price":129,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.tr","price":129,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":true},{"tld":".com.ua","price":129,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".net.ph","price":129,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".org.in","price":129,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":true},{"tld":".org.ro","price":129,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".co.ma","price":199,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.kz","price":199,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.pk","price":199,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.ru","price":199,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.tw","price":199,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":true},{"tld":".ee","price":199,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".hr","price":199,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".net.ng","price":199,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".org.ci","price":199,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":true},{"tld":".org.es","price":199,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".org.lv","price":199,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".org.mu","price":199,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".org.pl","price":199,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".at","price":299,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".co.in","price":299,"originalPrice":466,"region":"AS","category":"region","hot":false,"promo":true,"premium":false},{"tld":".co.no","price":299,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.ci","price":299,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.fj","price":299,"originalPrice":null,"region":"OA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.mg","price":299,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".cr","price":299,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".kz","price":299,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".net.mu","price":299,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".net.nl","price":299,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".ci","price":399,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.gh","price":399,"originalPrice":674,"region":"AF","category":"region","hot":false,"promo":true,"premium":false},{"tld":".ec","price":399,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".es","price":399,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".hi.cn","price":399,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".net.pk","price":399,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":true},{"tld":".net.ru","price":399,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".org.nz","price":399,"originalPrice":null,"region":"OA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".pl","price":399,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".si","price":399,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":true},{"tld":".us","price":399,"originalPrice":658,"region":"NA","category":"region","hot":false,"promo":true,"premium":false},{"tld":".cl","price":588,"originalPrice":null,"region":"NA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".co.ba","price":588,"originalPrice":1070,"region":"EU","category":"region","hot":false,"promo":true,"premium":false},{"tld":".co.id","price":588,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".co.it","price":588,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.ee","price":588,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.hr","price":588,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".de","price":588,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".ir","price":588,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".net.pl","price":588,"originalPrice":1070,"region":"EU","category":"region","hot":false,"promo":true,"premium":false},{"tld":".ng","price":588,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".rs","price":588,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".ae","price":888,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".au","price":888,"originalPrice":null,"region":"OA","category":"region","hot":false,"promo":false,"premium":false},{"tld":".co.ee","price":888,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.cn","price":888,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.gr","price":888,"originalPrice":null,"region":"EU","category":"region","hot":false,"promo":false,"premium":false},{"tld":".com.sn","price":888,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".hk.cn","price":888,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":true},{"tld":".ma","price":888,"originalPrice":null,"region":"AF","category":"region","hot":false,"promo":false,"premium":false},{"tld":".net.in","price":888,"originalPrice":null,"region":"AS","category":"region","hot":false,"promo":false,"premium":false},{"tld":".uy","price":888,"originalPrice":1554,"region":"NA","category":"region","hot":false,"promo":true,"premium":false}];
+var PRICE_MAP = new Map(TLDS.map(function(t){ return [t.tld, t]; }));
+
+/* 后缀属性集（抓取自原站筛选）：自由过户 / 提供信托 / 支持单·二·三字符注册（char_N 为累积：1⊂2⊂3）*/
+var FILTERS = {"tld_free":[".ee",".ai",".cm",".mg",".im",".cn.com",".com",".bi",".ec",".me",".ci",".ke",".bet",".app",".net",".co",".tc",".tg",".biz",".cn",".vip",".org",".info",".top",".wang",".club",".mobi",".pro",".xyz",".sb",".lv",".pe",".cat",".xxx",".asia",".one",".gg",".gl",".io",".ms",".ac",".ae",".ag",".al",".at",".by",".bz",".cc",".ch",".cr",".cx",".cz",".de",".dj",".fi",".fm",".fo",".ga",".gd",".gs",".gt",".ht",".id",".is",".je",".ki",".kz",".lc",".lu",".ly",".md",".mk",".ml",".mn",".mp",".mu",".mw",".mx",".na",".ne",".nf",".ng",".nl",".nu",".nz",".ph",".pl",".pw",".sc",".sh",".si",".sl",".so",".sr",".sx",".tl",".tm",".to",".tv",".tw",".ug",".uk",".us",".vc",".vg",".vu",".ws",".ceo",".lol",".men",".ooo",".hn",".tel",".gy",".name",".news",".st",".zone",".rw",".ren",".casino",".wiki",".moe",".baby",".bar",".td",".bingo",".cyou",".xin",".com.af",".net.af",".org.af",".co.ag",".com.ag",".net.ag",".org.ag",".com.ai",".com.al",".co.at",".or.at",".co.bi",".com.bi",".com.by",".com.bz",".net.bz",".co.ci",".com.ci",".net.ci",".or.ci",".org.ci",".com.cn",".net.cn",".org.cn",".hk.cn",".com.co",".net.co",".br.com",".co.com",".de.com",".eu.com",".ru.com",".sa.com",".uk.com",".us.com",".za.com",".com.ec",".net.ec",".com.ee",".com.fo",".co.gg",".net.gg",".co.gl",".com.gl",".net.gl",".org.gl",".com.gt",".com.hn",".net.hn",".org.hn",".com.ht",".net.ht",".org.ht",".co.im",".com.im",".net.im",".org.im",".co.in",".net.in",".org.in",".co.je",".net.je",".com.ki",".net.ki",".org.ki",".co.lc",".com.lc",".com.lv",".net.lv",".org.lv",".com.ly",".net.ly",".org.ly",".com.md",".org.md",".co.mg",".com.mg",".or.mg",".co.ms",".com.ms",".com.mx",".gb.net",".jp.net",".se.net",".uk.net",".com.nf",".net.nf",".com.ng",".net.ng",".org.ng",".co.nl",".com.nl",".net.nl",".co.nz",".net.nz",".org.nz",".ae.org",".com.pe",".net.pe",".org.pe",".com.ph",".net.ph",".org.ph",".com.pl",".net.pl",".org.pl",".com.sb",".net.sb",".org.sb",".com.sc",".net.sc",".com.so",".net.so",".org.so",".co.tj",".com.tj",".com.tw",".co.ug",".com.ug",".org.ug",".co.uk",".me.uk",".org.uk",".com.vc",".net.vc",".org.vc",".com.ve",".com.tc",".net.tc",".org.tc",".com.gy",".net.gy",".co.gy",".hi.cn",".hb.cn",".ah.cn",".co.ee"],"tld_service":[".ba",".ge",".jp",".az",".bb",".bg",".cl",".de",".it",".kr",".ma",".mr",".mv",".my",".ni",".rs",".sg",".sk",".sv",".uy",".ar",".mom",".co.ba",".com.bd",".com.br",".co.kr",".com.lb",".co.ma",".net.ma",".org.ma",".com.my",".net.my",".com.ni",".net.ni",".org.ni",".com.sg",".com.sn",".org.sn",".in.th"],"char_1":[".am",".im",".sb",".pe",".gg",".gl",".ms",".ag",".at",".bo",".gs",".ht",".kg",".ki",".lc",".lu",".mp",".mr",".mw",".nf",".nu",".sv",".to",".hn",".st",".fan",".baby",".bingo",".co.ag",".com.ag",".net.ag",".org.ag",".com.ai",".co.at",".or.at",".co.cm",".com.cm",".net.cm",".co.gl",".com.gl",".net.gl",".org.gl",".com.hn",".net.hn",".org.hn",".com.ht",".net.ht",".org.ht",".com.kg",".net.kg",".org.kg",".com.ki",".net.ki",".org.ki",".co.lc",".com.lc",".com.md",".org.md",".co.ms",".com.ms",".co.mw",".com.mw",".com.nf",".net.nf",".com.pe",".net.pe",".org.pe",".com.pk",".net.pk",".org.pk",".co.pn",".net.pn",".org.pn",".com.sb",".net.sb",".org.sb",".com.sc",".net.sc",".com.gy",".net.gy",".co.gy",".co.ee",".net.ai",".org.ai",".off.ai",".ote.ai"],"char_2":[".ee",".am",".cm",".im",".bi",".inc",".sy",".ci",".ge",".do",".sb",".lv",".pe",".sd",".gg",".gl",".ms",".ae",".ag",".al",".at",".bo",".by",".cd",".cl",".cr",".cx",".fi",".fo",".gd",".gp",".gs",".ht",".is",".je",".kg",".ki",".lc",".lt",".lu",".md",".mk",".mp",".mr",".mw",".na",".nf",".nu",".nz",".pw",".rs",".ru",".si",".su",".sv",".to",".tt",".vc",".vg",".ws",".hn",".gy",".st",".uy",".rw",".ax",".fan",".moe",".baby",".bingo",".cyou",".mom",".hair",".llc",".com.af",".net.af",".org.af",".co.ag",".com.ag",".net.ag",".org.ag",".com.ai",".com.al",".com.am",".net.am",".org.am",".com.ar",".co.at",".or.at",".co.bi",".com.bi",".com.by",".co.ci",".com.ci",".net.ci",".or.ci",".org.ci",".co.cm",".com.cm",".net.cm",".br.com",".co.com",".de.com",".eu.com",".ru.com",".uk.com",".us.com",".za.com",".com.de",".com.do",".com.ee",".com.ge",".co.gg",".net.gg",".co.gl",".com.gl",".net.gl",".org.gl",".com.gp",".com.hn",".net.hn",".org.hn",".com.ht",".net.ht",".org.ht",".co.je",".net.je",".com.kg",".net.kg",".org.kg",".com.ki",".net.ki",".org.ki",".com.kw",".co.lc",".com.lc",".com.lv",".net.lv",".org.lv",".co.ma",".net.ma",".org.ma",".com.md",".org.md",".co.mg",".com.mg",".or.mg",".com.mk",".co.ms",".com.ms",".co.mw",".com.mw",".co.na",".com.na",".net.na",".org.na",".com.nf",".net.nf",".com.ni",".net.ni",".org.ni",".co.nz",".net.nz",".org.nz",".com.pe",".net.pe",".org.pe",".com.pk",".net.pk",".org.pk",".co.pn",".net.pn",".org.pn",".com.ro",".com.ru",".net.ru",".org.ru",".com.sb",".net.sb",".org.sb",".com.sc",".net.sc",".com.sg",".com.sv",".co.tt",".com.tt",".com.vc",".net.vc",".org.vc",".co.rs",".com.tc",".net.tc",".org.tc",".com.gy",".net.gy",".co.gy",".co.ee",".com.uy",".net.ai",".org.ai",".off.ai",".ote.ai"],"char_3":[".ee",".ai",".am",".cm",".mg",".im",".ba",".cn.com",".com",".bi",".ec",".inc",".me",".sy",".ci",".bet",".app",".net",".ge",".co",".do",".tc",".tg",".biz",".cn",".org",".info",".top",".wang",".club",".mobi",".pro",".xyz",".sb",".jp",".lv",".pe",".sd",".cat",".xxx",".asia",".one",".gg",".gl",".io",".ms",".ac",".ae",".ag",".al",".as",".at",".aw",".az",".bb",".bf",".bg",".bo",".bs",".by",".bz",".cc",".cd",".ch",".cl",".cr",".cx",".cz",".de",".dj",".es",".fi",".fm",".fo",".ga",".gd",".gp",".gr",".gs",".gt",".hk",".hm",".hr",".ht",".ir",".is",".it",".je",".kg",".ki",".kn",".kr",".kz",".la",".lc",".lt",".lu",".ma",".md",".mk",".mn",".mp",".mr",".mv",".mw",".mx",".na",".ne",".nf",".ng",".ni",".nl",".nr",".nu",".nz",".ph",".pl",".pr",".pt",".pw",".ro",".rs",".ru",".sc",".se",".sh",".si",".sk",".sm",".so",".sr",".su",".sv",".sx",".tj",".tl",".tm",".to",".tt",".tw",".ug",".uk",".us",".vc",".vg",".vu",".ws",".ceo",".lol",".men",".ooo",".hn",".tel",".gy",".name",".news",".st",".zone",".uy",".vi",".link",".bj",".ls",".rw",".sn",".ax",".fan",".kim",".ren",".fun",".casino",".wiki",".moe",".baby",".bar",".td",".bingo",".cyou",".xin",".blog",".mom",".et",".hair",".llc",".kiwi",".닷컴",".한국",".сайт",".游戏",".онлайн",".africa",".ss",".zip",".rest",".ad",".网站",".机构",".com.af",".net.af",".org.af",".co.ag",".com.ag",".net.ag",".org.ag",".com.ai",".com.al",".com.am",".net.am",".org.am",".co.ao",".com.ar",".org.ar",".co.at",".or.at",".com.au",".net.au",".co.ba",".co.bi",".com.bd",".com.bi",".com.bo",".com.br",".com.bs",".com.by",".com.bz",".net.bz",".co.ci",".com.ci",".net.ci",".or.ci",".org.ci",".co.ck",".co.cm",".com.cm",".net.cm",".com.cn",".net.cn",".org.cn",".hk.cn",".com.co",".net.co",".br.com",".co.com",".de.com",".eu.com",".ru.com",".sa.com",".uk.com",".us.com",".za.com",".com.cu",".com.cy",".com.de",".com.do",".com.ec",".net.ec",".com.ee",".com.eg",".com.es",".org.es",".com.et",".com.fj",".com.fo",".com.ge",".co.gg",".net.gg",".com.gh",".com.gi",".co.gl",".com.gl",".net.gl",".org.gl",".com.gp",".com.gr",".com.gt",".com.hk",".com.hn",".net.hn",".org.hn",".com.hr",".com.ht",".net.ht",".org.ht",".co.il",".co.im",".com.im",".net.im",".org.im",".co.in",".net.in",".org.in",".co.je",".net.je",".com.jm",".co.jp",".gr.jp",".ne.jp",".co.ke",".com.kg",".net.kg",".org.kg",".com.ki",".net.ki",".org.ki",".co.kr",".com.kw",".com.kz",".com.lb",".co.lc",".com.lc",".co.ls",".com.lv",".net.lv",".org.lv",".co.ma",".net.ma",".org.ma",".com.md",".org.md",".co.mg",".com.mg",".or.mg",".com.mk",".co.ms",".com.ms",".com.mt",".co.mw",".com.mw",".com.mx",".com.my",".net.my",".co.mz",".co.na",".com.na",".net.na",".org.na",".gb.net",".jp.net",".se.net",".uk.net",".com.nf",".net.nf",".com.ng",".net.ng",".org.ng",".com.ni",".net.ni",".org.ni",".co.nl",".com.nl",".net.nl",".co.no",".com.nr",".co.nz",".net.nz",".org.nz",".ae.org",".com.pa",".com.pe",".net.pe",".org.pe",".com.ph",".net.ph",".org.ph",".com.pk",".net.pk",".org.pk",".com.pl",".net.pl",".org.pl",".co.pn",".net.pn",".org.pn",".com.pr",".net.pr",".org.pr",".com.pt",".com.py",".com.ro",".org.ro",".com.ru",".net.ru",".org.ru",".com.sb",".net.sb",".org.sb",".com.sc",".net.sc",".com.sd",".net.sd",".org.sd",".com.se",".com.sg",".com.sl",".com.sn",".org.sn",".com.so",".net.so",".org.so",".com.sv",".in.th",".co.tj",".com.tj",".com.tr",".co.tt",".com.tt",".com.tw",".com.ua",".co.ug",".com.ug",".org.ug",".co.uk",".me.uk",".org.uk",".com.vc",".net.vc",".org.vc",".co.ve",".com.ve",".net.ve",".org.ve",".co.vi",".com.vi",".co.za",".net.za",".org.za",".co.zm",".co.zw",".co.rs",".com.tc",".net.tc",".org.tc",".com.bj",".com.gy",".net.gy",".co.gy",".co.ua",".co.it",".co.ee",".com.uy",".net.ai",".org.ai",".off.ai",".ote.ai"]};
+var FREE_SET=new Set(FILTERS.tld_free), SERVICE_SET=new Set(FILTERS.tld_service);
+var CHAR_SET={1:new Set(FILTERS.char_1), 2:new Set(FILTERS.char_2), 3:new Set(FILTERS.char_3)};
+
+var FREE_LIMIT = 25;                 // 每批查询数（对齐原站低频限流：25 个一批）
+var LARGE_QUERY_BATCH_THRESHOLD = 5;
+var LARGE_QUERY_MAX_ROUNDS = 6;
+var SMALL_QUERY_MAX_ROUNDS = 6;
+var SINGLE_RETRY_MAX_ROUNDS = 6;
+var LARGE_QUERY_BATCH_COOLDOWN = 1800;
+var GEN_CAP = 5000;                  // 规则生成上限，防组合爆炸
+var DEFAULT_TLDS = ['.com','.cn','.net','.ai','.io','.co'];
+
+/* ===========================================================================
+ * 功能 B —— 规则生成引擎（可枚举的正则子集）
+ *   支持：[a-z] [0-9] [abc] 字符集；\d \a \w 简写；(a|b|c) 任选；
+ *         {n} {m,n} 量词；其余字符按字面量。
+ * =========================================================================*/
+function expandRange(a, z){
+  var out=[], i=a.charCodeAt(0), j=z.charCodeAt(0);
+  if(i>j){ var k=i;i=j;j=k; }
+  for(; i<=j; i++) out.push(String.fromCharCode(i));
+  return out;
+}
+function parseClass(body){
+  var out=[];
+  for(var k=0;k<body.length;k++){
+    if(body[k+1]==='-' && body[k+2]!==undefined){
+      out=out.concat(expandRange(body[k], body[k+2])); k+=2;
+    } else out.push(body[k]);
+  }
+  return out;
+}
+function parsePattern(src){
+  var segs=[], i=0, n=src.length, caps=0;
+  function quant(){
+    if(src[i]==='{'){
+      var e=src.indexOf('}', i); if(e<0) throw '缺少 \u007d';
+      var body=src.slice(i+1,e).trim(), m;
+      if(body.indexOf(',')>=0){ var p=body.split(','); m={min:+p[0],max:+(p[1]===''?p[0]:p[1])}; }
+      else m={min:+body,max:+body};
+      if(isNaN(m.min)||isNaN(m.max)||m.min<0||m.max<m.min||m.max>12) throw '量词不合法：\u007b'+body+'}';
+      i=e+1; return m;
+    }
+    return {min:1,max:1};
+  }
+  while(i<n){
+    var c=src[i], seg;
+    if(c==='['){
+      var e=src.indexOf(']', i); if(e<0) throw '缺少右方括号';
+      var opts=parseClass(src.slice(i+1,e)); i=e+1;
+      if(!opts.length) throw '空字符集';
+      seg={kind:'set', options:opts, capture:null};
+    } else if(c==='('){
+      var e2=src.indexOf(')', i); if(e2<0) throw '缺少右括号';
+      var inner=src.slice(i+1,e2); i=e2+1;
+      var alts=inner.split('|'), opts2=[];
+      for(var ai=0; ai<alts.length; ai++){
+        if(!alts[ai].length) continue;
+        var sub=[]; build(parsePattern(alts[ai]), 0, '', [], sub, GEN_CAP);
+        opts2=opts2.concat(sub);
+      }
+      if(!opts2.length) throw '空分组';
+      caps++; seg={kind:'set', options:opts2, capture:caps};   // 每个 () 都是捕获组
+    } else if(c==='\\'){
+      var d=src[i+1];
+      if(d>='1'&&d<='9'){                                       // 反向引用
+        seg={kind:'ref', ref:+d}; i+=2;
+        if(seg.ref>caps) throw '反向引用非法'+seg.ref+' 没有对应分组';
+      } else {
+        var o;
+        if(d==='d') o=expandRange('0','9');
+        else if(d==='a'||d==='l') o=expandRange('a','z');
+        else if(d==='w') o=expandRange('a','z').concat(expandRange('0','9'));
+        else if(d!==undefined) o=[d];
+        else throw '结尾多余的反斜杠';
+        seg={kind:'set', options:o, capture:null}; i+=2;
+      }
+    } else { seg={kind:'set', options:[c], capture:null}; i+=1; }
+    var q=quant(); seg.min=q.min; seg.max=q.max;
+    segs.push(seg);
+  }
+  return segs;
+}
+function countPattern(segs){
+  var total=1;
+  for(var s=0;s<segs.length;s++){
+    var seg=segs[s], size=0;
+    if(seg.kind==='ref'){ size=seg.max-seg.min+1; }       // 反向引用：值已确定，只随长度变化
+    else { var o=seg.options.length; for(var k=seg.min;k<=seg.max;k++) size+=Math.pow(o,k); }
+    total*=size;
+    if(total>1e15) return Infinity;
+  }
+  return total;
+}
+function segStrings(seg, cap){
+  var out=[];
+  for(var k=seg.min;k<=seg.max;k++){
+    var acc=[''];
+    for(var r=0;r<k;r++){
+      var next=[];
+      for(var a=0;a<acc.length;a++){
+        for(var b=0;b<seg.options.length;b++){
+          next.push(acc[a]+seg.options[b]);
+          if(next.length>=cap) break;
+        }
+        if(next.length>=cap) break;
+      }
+      acc=next;
+    }
+    for(var x=0;x<acc.length && out.length<cap;x++) out.push(acc[x]);
+    if(out.length>=cap) break;
+  }
+  return out;
+}
+function repeatStr(v,k){ var s=''; for(var i=0;i<k;i++) s+=v; return s; }
+function build(segs, idx, prefix, caps, out, cap){
+  if(out.length>=cap) return;
+  if(idx===segs.length){ out.push(prefix); return; }
+  var seg=segs[idx];
+  if(seg.kind==='ref'){                                  // 反向引用：取该组已选的值（不分叉）
+    var v=caps[seg.ref-1]||'';
+    for(var k=seg.min;k<=seg.max && out.length<cap;k++) build(segs, idx+1, prefix+repeatStr(v,k), caps, out, cap);
+    return;
+  }
+  var contribs=segStrings(seg, cap);
+  for(var c=0;c<contribs.length && out.length<cap;c++){
+    var nc=caps;
+    if(seg.capture){ nc=caps.slice(); nc[seg.capture-1]=contribs[c]; }  // 记录捕获组取值
+    build(segs, idx+1, prefix+contribs[c], nc, out, cap);
+  }
+}
+function expand(pattern, cap){
+  cap=cap||GEN_CAP;
+  if(!pattern || !pattern.trim()) return {list:[],total:0,truncated:false,error:null};
+  var segs;
+  try{ segs=parsePattern(pattern.trim()); }
+  catch(err){ return {list:[],total:0,truncated:false,error:String(err)}; }
+  var total=countPattern(segs);
+  var out=[];
+  build(segs, 0, '', [], out, cap);
+  return {list:out, total:total, truncated:total>out.length, error:null};
+}
+
+/* ---- 顺子是「连号递增」，非同位重复，正则表达不了，保留小函数 ---- */
+function shunzi(len){ var o=[]; for(var s=0;s+len<=10;s++){ var x=''; for(var k=0;k<len;k++)x+=(s+k); o.push(x);} return o; } // 0123,1234,...
+
+/* ---- 预设：正则类给 pattern（含豹子/AABB/ABAB 的反向引用写法）；顺子给 gen ---- */
+var PRESETS=[
+  {label:'3位数字', pattern:'[0-9]{3}'},
+  {label:'4位字母', pattern:'[a-z]{4}'},
+  {label:'字母+数字', pattern:'[a-z]{2}[0-9]{2}'},
+  {label:'前缀 get/my', pattern:'(get|my|go)[a-z]{4}'},
+  {label:'后缀 app/hub', pattern:'[a-z]{4}(app|hub|ai)'},
+  {label:'数字序列 vip', pattern:'vip[0-9]{1,3}'},
+  {label:'字典组合', pattern:'(red|blue|sky)(fox|cat|app)'},
+  {label:'豹子(3位)', pattern:'([0-9])\\1{2}', kind:true},
+  {label:'豹子(4位)', pattern:'([0-9])\\1{3}', kind:true},
+  {label:'AABB', pattern:'([0-9])\\1([0-9])\\2', kind:true},
+  {label:'ABAB', pattern:'([0-9])([0-9])\\1\\2', kind:true},
+  {label:'顺子(4位)', gen:function(){return shunzi(4);}, kind:true}
+];
+
+/* ===========================================================================
+ * 功能 A —— 关键词 × 后缀 展开
+ * =========================================================================*/
+function splitDomain(d){ var i=d.indexOf('.'); return i<0?{sld:d,tld:''}:{sld:d.slice(0,i),tld:d.slice(i)}; }
+function expandDomains(){
+  var lines=(document.getElementById('input').value||'')
+    .split(/[\n,，\s]+/).map(function(s){return s.trim().toLowerCase();}).filter(Boolean);
+  var sel=Array.from(state.selectedTlds), out=[], seen={};
+  for(var i=0;i<lines.length;i++){
+    var cands = lines[i].indexOf('.')>=0 ? [lines[i]] : sel.map(function(t){return lines[i]+t;});
+    for(var j=0;j<cands.length;j++){
+      var clean=cands[j].replace(/[^a-z0-9.\-]/g,'');
+      if(clean && clean.indexOf('.')>=0 && !seen[clean]){ seen[clean]=1; out.push(clean); }
+    }
+  }
+  return out;
+}
+
+/* ===========================================================================
+ * 测试数据 = 真实后端契约（重点）
+ *   原站请求：POST /whois2.php  body: domain=a.com,b.ai&ajax=1
+ *   返回单项字段：
+ *     可注册 : {status:'success', result:'available',   domain, price, original_price, premium, premium_price}
+ *     已注册 : {status:'success', result:'unavailable', premium_price:null, domain}
+ *     超时   : {status:'success', result:'timeout',     premium_price:null, domain}
+ *     查询中 : {status:'success', result:'wait',        premium_price:null, domain}   ← 轮询直到落定
+ *
+ *   ▼▼▼ 日后联调真实接口：把下面的 mockWhois 整体换成这段即可，UI 完全不用改 ▼▼▼
+ *   async function realWhois(domains){
+ *     return fetch('https://www.quyu.net/whois2.php', {
+ *       method:'POST', credentials:'include',
+ *       headers:{'content-type':'application/x-www-form-urlencoded; charset=UTF-8','x-requested-with':'XMLHttpRequest'},
+ *       body:'domain='+domains.join(',')+'&ajax=1'
+ *     }).then(function(r){return r.json();});
+ *   }
+ *   ▲▲▲ 返回结构已对齐，调用处 runQuery 无需改动 ▲▲▲
+ * =========================================================================*/
+var TAKEN_WORDS={};(function(){var ws=["google","baidu","taobao","qq","weibo","weixin","amazon","facebook","twitter","github","microsoft","apple","openai","alibaba","tencent","shop","mail","news","cloud","admin","test","demo","app","love","china","123","888","ai","go","me","web","home","blog","store","group","work","host","pro","tech","page","life","site","world","club","design","dev","codes"];for(var i=0;i<ws.length;i++)TAKEN_WORDS[ws[i]]=1;})();
+function hash(str){ var h=2166136261; for(var i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619);} return Math.abs(h); }
+function premiumPriceFor(domain, base){
+  var p1=base*(8+(hash(domain)%40));
+  return {'1':Math.round(p1), '2':Math.round(p1*1.9), '3':Math.round(p1*2.8)};
+}
+function finalResult(domain, retry){
+  var sd=splitDomain(domain), info=PRICE_MAP.get(sd.tld);
+  var isRetry = retry || (state.entries[domain] && state.entries[domain].retries > 0);
+  var h=hash(isRetry?domain+':retry':domain);
+  var isTimeout = isRetry ? false : (h%100<8);   // 重试不再超时，保证能落定
+  var taken = !!TAKEN_WORDS[sd.sld];
+  if(!taken){ if(sd.sld.length<=2) taken=h%100<80; else if(sd.sld.length===3) taken=h%100<55; else taken=h%100<38; }
+  if(isTimeout) return {status:'success',result:'timeout',premium_price:null,domain:domain};
+  if(taken)     return {status:'success',result:'unavailable',premium_price:null,domain:domain};
+  var base = info?info.price:69;
+  var premium = (info&&info.premium)||sd.sld.length<=2||h%100>=92;
+  return {status:'success',result:'available',domain:domain,price:base,
+    original_price:info?info.originalPrice:null, premium:premium,
+    premium_price:premium?premiumPriceFor(domain,base):null};
+}
+function sleep(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
+async function mockBatchCheck(domains){
+  await sleep(400);
+  return domains.map(function(d){ return finalResult(d); });
+}
+
+// 环境自适应配置：
+// 1. 双击本地 HTML (file:) 或 URL 参数中包含 ?mock=1 / ?demo=1 时，启用 mock (模拟数据) 演示。
+// 2. 正常部署上线或本地通过代理联调时，默认启用 real (真实接口) 检测。
+var urlParams = new URLSearchParams(window.location.search);
+var useMock = window.location.protocol === 'file:' || urlParams.has('mock') || urlParams.has('demo');
+
+var CONFIG = {
+  source: useMock ? 'mock' : 'real',
+  apiBase: ''
+};
+
+/* ===========================================================================
+ * 状态 + 渲染
+ * =========================================================================*/
+var state={
+  selectedTlds:new Set(DEFAULT_TLDS),
+  filter:{category:'all', region:'all', keyword:'', priceMin:null, priceMax:null, onlyPromo:false, free:false, service:false, charLen:0},
+  expanded:false,
+  entries:{}, order:[], querying:false
+};
+var CATS=[['all','全部'],['hot','热门'],['newgtld','新顶级域'],['generic','通用'],['region','国别域名']];
+var REGIONS=[['all','全部地区'],['AS','亚洲'],['EU','欧洲'],['NA','美洲'],['OA','大洋洲'],['AF','非洲']];
+var CHARS=[[0,'全部'],[1,'单字符'],[2,'二字符'],[3,'三字符']];
+var INIT_VISIBLE=96;
+function fmt(n){ return n==null?'':'¥'+Number(n).toLocaleString('zh-CN'); }
+function $(id){ return document.getElementById(id); }
+
+function filteredTlds(){
+  var f=state.filter, kw=f.keyword.trim().toLowerCase().replace(/^\./,'');
+  return TLDS.filter(function(t){
+    if(f.category!=='all' && t.category!==f.category) return false;
+    if(f.category==='region' && f.region!=='all' && t.region!==f.region) return false;
+    if(f.onlyPromo && !t.promo) return false;
+    if(f.free && !FREE_SET.has(t.tld)) return false;
+    if(f.service && !SERVICE_SET.has(t.tld)) return false;
+    if(f.charLen && !(CHAR_SET[f.charLen] && CHAR_SET[f.charLen].has(t.tld))) return false;
+    if(f.priceMin!=null && t.price<f.priceMin) return false;
+    if(f.priceMax!=null && t.price>f.priceMax) return false;
+    if(kw && t.tld.slice(1).indexOf(kw)<0) return false;
+    return true;
+  });
+}
+function renderPresets(){
+  $('presets').innerHTML = PRESETS.map(function(p,i){
+    return '<button class="chip'+(p.kind?' kind':'')+'" data-i="'+i+'">'+p.label+'</button>';
+  }).join('');
+}
+function renderCats(){
+  $('catSeg').innerHTML = CATS.map(function(c){
+    return '<button data-c="'+c[0]+'" class="'+(state.filter.category===c[0]?'on':'')+'">'+c[1]+'</button>';
+  }).join('');
+  var row=$('regionRow');
+  if(state.filter.category==='region'){
+    row.classList.remove('hide');
+    $('regionSeg').innerHTML = REGIONS.map(function(r){
+      return '<button data-r="'+r[0]+'" class="'+(state.filter.region===r[0]?'on':'')+'">'+r[1]+'</button>';
+    }).join('');
+  } else { row.classList.add('hide'); }
+}
+function renderFeatures(){
+  var f=state.filter;
+  Array.prototype.forEach.call(document.querySelectorAll('#featRow .chip[data-feat]'), function(b){
+    var on = (b.dataset.feat==='promo'&&f.onlyPromo)||(b.dataset.feat==='free'&&f.free)||(b.dataset.feat==='service'&&f.service);
+    b.classList.toggle('on', !!on);
+  });
+  $('charSeg').innerHTML = CHARS.map(function(c){
+    return '<button data-cl="'+c[0]+'" class="'+(f.charLen===c[0]?'on':'')+'">'+c[1]+'</button>';
+  }).join('');
+}
+function renderTlds(){
+  var list=filteredTlds();
+  var vis=state.expanded?list:list.slice(0,INIT_VISIBLE);
+  $('tldGrid').innerHTML = vis.map(function(t){
+    var on=state.selectedTlds.has(t.tld);
+    var price = (t.originalPrice?'<span class="old">'+fmt(t.originalPrice)+'</span>':'')
+              + '<span class="'+(t.promo?'promo':'')+'">'+fmt(t.price)+'</span>';
+    var tags = (t.hot?'<span class="tag hot">热</span>':'')+(t.promo?'<span class="tag promo">促</span>':'');
+    return '<button class="tld'+(on?' on':'')+'" data-t="'+t.tld+'">'+
+      '<span><span class="t mono">'+t.tld+'</span><br><span class="p tnum">'+price+'</span></span>'+
+      '<span class="tg">'+tags+'</span></button>';
+  }).join('');
+  $('selCount').textContent=state.selectedTlds.size;
+  $('filtCount').textContent=list.length;
+  var eb=$('expandBtn');
+  if(!state.expanded && list.length>INIT_VISIBLE){ eb.classList.remove('hide'); eb.textContent='展开全部 '+list.length+' 个后缀'; }
+  else eb.classList.add('hide');
+  renderFeatures();
+  updateMeta();
+}
+function updateMeta(){
+  var v=$('input').value||'';
+  var kw=v.split(/[\n,，\s]+/).map(function(s){return s.trim();}).filter(Boolean);
+  var total=expandDomains().length;
+  $('kwCount').textContent=kw.length;
+  $('domCount').textContent=total;
+  var over=$('overTip');
+  if(total>FREE_LIMIT){ over.classList.remove('hide'); over.textContent='将分 '+Math.ceil(total/FREE_LIMIT)+' 批查询（每批 '+FREE_LIMIT+' 个）'; }
+  else over.classList.add('hide');
+}
+function makeEntry(d){ var sd=splitDomain(d); return {domain:d,sld:sd.sld,tld:sd.tld,status:'wait',price:null,originalPrice:null,premium:false,premiumPrice:null,retries:0,inCart:false,rendered:false}; }
+function applyResult(e,r){
+  e.status=r.result;
+  if(r.result==='available'){
+    var info=PRICE_MAP.get(e.tld);
+    e.price = (r.price!=null) ? r.price : (info?info.price:null);
+    e.originalPrice = (r.original_price!=null) ? r.original_price : (info?info.originalPrice:null);
+    e.premium = (r.premium!=null) ? !!r.premium : (info?!!info.premium:false);
+    e.premiumPrice = r.premium_price;
+  }
+}
+function resetResults(total){
+  state.counts={av:0,no:0,to:0}; state._total=total;
+  $('availList').innerHTML=''; $('timeoutList').innerHTML=''; $('takenList').innerHTML='';
+  $('availWrap').classList.add('hide'); $('takenWrap').classList.add('hide');
+  $('timeoutWrap').classList.add('hide'); $('availMore').classList.add('hide');
+  $('emptyState').classList.add('hide');
+  $('counts').classList.remove('hide');
+  $('cAv').textContent='0'; $('cNo').textContent='0'; $('cTo').textContent='0'; $('cWa').textContent=total;
+  $('avN').textContent='0';
+}
+function availCardHTML(e){
+  var pr;
+  if(e.premium && e.premiumPrice){ pr='<span class="now">'+fmt(e.premiumPrice['1'])+'</span> /首年'; }
+  else { pr=(e.originalPrice?'<span class="old">'+fmt(e.originalPrice)+'</span>':'')+'<span class="now">'+fmt(e.price)+'</span> /首年'; }
+  return '<div class="rc av" data-d="'+e.domain+'">'+
+    '<div style="flex:1;min-width:0">'+
+      '<div class="dn mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e.domain+(e.premium?'<span class="pill">精品</span>':'')+'</div>'+
+      '<div class="pr tnum">'+pr+'</div>'+
+    '</div>'+
+    '<button class="lk copy-one" style="padding:4px 8px;font-size:11px;margin-left:8px;border:1px solid #c6f6d5;border-radius:6px;background:#fff;white-space:nowrap">复制</button>'+
+    '</div>';
+}
+function timeoutRowHTML(e){
+  return '<span class="tk to" data-d="'+e.domain+'"><span class="dn mono">'+e.domain+'</span><span class="st">超时</span><button class="retry" data-retry="'+e.domain+'">重试</button></span>';
+}
+function appendTimeout(e){
+  $('timeoutList').insertAdjacentHTML('beforeend', timeoutRowHTML(e));
+  $('timeoutWrap').classList.remove('hide');
+}
+var AVAIL_RENDER_CAP=200;
+var TAKEN_RENDER_CAP=100;
+function takenRowHTML(e){
+  return '<span class="tk" style="border-color:var(--line);color:var(--ink-2)">'+
+    '<span class="dn mono">'+e.domain+'</span>'+
+    '<a href="https://who.is/whois/'+e.domain+'" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--brand-d);text-decoration:underline;margin-left:4px;white-space:nowrap">WHOIS</a>'+
+    '</span>';
+}
+function appendTaken(e){
+  $('takenList').insertAdjacentHTML('beforeend', takenRowHTML(e));
+  $('takenWrap').classList.remove('hide');
+}
+function flushBatch(batch){
+  var avail='';
+  for(var i=0;i<batch.length;i++){
+    var e=state.entries[batch[i]];
+    if(!e || e.status==='wait' || e.rendered) continue;   // 已定型且未处理过的才计入，避免多轮重复
+    e.rendered=true;
+    if(e.status==='available'){ state.counts.av++; if(state.counts.av<=AVAIL_RENDER_CAP) avail+=availCardHTML(e); }
+    else if(e.status==='timeout'){ state.counts.to++; appendTimeout(e); }
+    else if(e.status==='unavailable'){
+      state.counts.no++;
+      if(state.counts.no<=TAKEN_RENDER_CAP) appendTaken(e);
+    }
+  }
+  if(avail){ $('availList').insertAdjacentHTML('beforeend', avail); $('availWrap').classList.remove('hide'); }
+  updateCounts();
+}
+function updateCounts(){
+  var c=state.counts;
+  $('cAv').textContent=c.av; $('cNo').textContent=c.no; $('cTo').textContent=c.to;
+  $('cWa').textContent=Math.max(0, state._total-(c.av+c.no+c.to));
+  $('avN').textContent=c.av;
+  updateAvailMoreText();
+  updateTakenMoreText();
+}
+function updateTakenMoreText(){
+  var c=state.counts;
+  if(c.no>0){
+    var el=$('takenMore');
+    el.textContent='（已注册 '+c.no+' 个'+(c.no>TAKEN_RENDER_CAP?'，只显示前 '+TAKEN_RENDER_CAP+' 个':'')+'）';
+    $('takenWrap').classList.remove('hide');
+  }
+}
+function updateAvailMoreText(){
+  var all=availableList().length;
+  if(all>0){
+    var el=$('availMore');
+    el.textContent='共 '+all+' 条可注册，导出 CSV 获取全部'+(all>AVAIL_RENDER_CAP?'（界面仅展示前 '+AVAIL_RENDER_CAP+' 条）':'');
+    el.classList.remove('hide');
+  }
+}
+function showProgress(t){ var p=$('progress'); p.textContent=t; p.classList.remove('hide'); }
+function hideProgress(){ $('progress').classList.add('hide'); }
+
+function availableList(){ return state.order.filter(function(d){ return state.entries[d].status==='available'; }); }
+function flash(btn,txt){ var o=btn.textContent; btn.textContent=txt; setTimeout(function(){ btn.textContent=o; }, 1200); }
+function copyText(text, btn){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){ flash(btn,'已复制'); }, function(){ legacyCopy(text,btn); });
+  } else legacyCopy(text,btn);
+}
+function legacyCopy(text,btn){
+  var ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); flash(btn,'已复制'); }catch(e){ alert('复制失败，请手动选择'); }
+  document.body.removeChild(ta);
+}
+function copyAvail(){ var l=availableList(); if(!l.length){ alert('暂无可注册域名'); return; } copyText(l.join('\n'), $('copyAvail')); }
+function exportAvail(){
+  var l=availableList(); if(!l.length){ alert('暂无可注册域名'); return; }
+  var rows=['域名,首年价格(元)'].concat(l.map(function(d){ var e=state.entries[d]; return d+','+(e.price!=null?e.price:''); }));
+  var blob=new Blob(['﻿'+rows.join('\r\n')], {type:'text/csv;charset=utf-8'});
+  var url=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url; a.download='可注册域名.csv'; document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+/* ===========================================================================
+ * 查询编排：60 个为一批，真实接口默认低压顺序查询；大批量仅做有限追询，避免触发上游限流。
+ * mock 与真实接口共用同一状态渲染流程。
+ * =========================================================================*/
+async function runQueryInternal(domains, isRetry){
+  if(state.querying) return;
+  state.querying = true;
+  setQuerying(true);
+
+  if (!isRetry) {
+    state.entries = {};
+    state.order = domains;
+    for(var i=0; i<domains.length; i++) state.entries[domains[i]] = makeEntry(domains[i]);
+    resetResults(domains.length);
+  } else {
+    $('timeoutList').innerHTML = '';
+    $('timeoutWrap').classList.add('hide');
+    for(var i=0; i<domains.length; i++){
+      var e = state.entries[domains[i]];
+      if(e) {
+        e.status = 'wait';
+        e.rendered = false;
+        e.retries++;
+      }
+    }
+    state.counts.to = 0;
+    updateCounts();
+  }
+
+  var BATCH = FREE_LIMIT, batches = Math.ceil(domains.length/BATCH);
+  var isReal = CONFIG.source==='real';
+  if(batches > 1){
+    var est = isReal ? '（低压顺序查询）' : '（模拟瞬出）';
+    showProgress((isRetry ? '正在重新查询超时的 ' : '分批查询中：共 ') + batches + ' 批，每批 ' + BATCH + ' 个' + est);
+  } else if(isReal){
+    showProgress(isRetry ? '正在重新查询超时的域名...' : '查询中...');
+  }
+
+  var hasError = false;
+  var completedBatches = 0;
+  var concurrency = 1;
+  var batchIndex = 0;
+  var maxRounds = CONFIG.source === 'mock' ? 1 : (batches >= LARGE_QUERY_BATCH_THRESHOLD ? LARGE_QUERY_MAX_ROUNDS : SMALL_QUERY_MAX_ROUNDS);
+  var batchCooldown = CONFIG.source === 'real' && batches >= LARGE_QUERY_BATCH_THRESHOLD ? LARGE_QUERY_BATCH_COOLDOWN : 0;
+  var querySession = 'cf_query_session_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+  var queryCookie = '';
+  if (isReal) {
+    try {
+      var sessionRes = await fetch((CONFIG.apiBase||'')+'/api/session').then(function(r){
+        if(!r.ok) throw new Error('Session HTTP '+r.status);
+        return r.json();
+      });
+      queryCookie = sessionRes.cookie || '';
+    } catch(e) {
+      console.error('Fetch session cookie failed:', e);
+    }
+  }
+
+  async function processBatch(batch, currentIdx) {
+
+    let round = 0;
+    while (round < maxRounds) {
+      const waiting = batch.filter(d => state.entries[d].status === 'wait');
+      if (waiting.length === 0) break;
+
+      if (round > 0) {
+        // 指数退避时间：第1轮后等 2s，第2轮后等 3.5s，第3轮后等 5s，最多等 6.5s
+        await sleep(Math.min(2000 + (round - 1) * 1500, 6500));
+      }
+
+      const isPoll = round > 0;
+      try {
+        let res;
+        if (CONFIG.source === 'mock') {
+          res = await mockBatchCheck(waiting);
+        } else {
+          res = await fetch((CONFIG.apiBase||'')+'/api/check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ domains: waiting, session: querySession, cookie: queryCookie, isPoll: isPoll, allowWait: true })
+          }).then(function(r){
+            if(!r.ok) throw new Error('HTTP '+r.status);
+            return r.json();
+          });
+        }
+        for(var k=0; k<res.length; k++){
+          var e = state.entries[res[k].domain];
+          if(e && e.status==='wait') applyResult(e, res[k]);
+        }
+      } catch(batchErr) {
+        console.error('Batch ' + currentIdx + ' round ' + round + ' error:', batchErr);
+      }
+      round++;
+      flushBatch(batch);
+    }
+
+    // 有限轮次结束后，对依然处于 wait 状态的域名进行超时兜底
+    batch.forEach(function(d){
+      var e = state.entries[d];
+      if(e && e.status==='wait') e.status='timeout';
+    });
+    flushBatch(batch);
+
+    completedBatches++;
+    if (batches > 1) {
+      showProgress((isRetry ? '重新查询中：已完成 ' : '分批查询中：已完成 ') + completedBatches + ' / ' + batches + ' 批...');
+    }
+    if (batchCooldown && currentIdx < batches - 1) {
+      await sleep(batchCooldown);
+    }
+  }
+
+  async function next() {
+    if (batchIndex >= batches) return;
+    const currentIdx = batchIndex++;
+    const batch = domains.slice(currentIdx * BATCH, (currentIdx + 1) * BATCH);
+    try {
+      await processBatch(batch, currentIdx);
+    } catch (e) {
+      console.error('Batch execution error:', e);
+      hasError = true;
+    }
+    await next();
+  }
+
+  try {
+    const promises = [];
+    for (let i = 0; i < Math.min(concurrency, batches); i++) {
+      promises.push(next());
+    }
+    await Promise.all(promises);
+    if(batches > 1) showProgress(isRetry ? '重试完成' : '查询完成');
+  } catch(err) {
+    console.error('Query execution error:', err);
+    hasError = true;
+  }
+
+  state.querying = false;
+  setQuerying(false);
+  if(batches > 1) setTimeout(hideProgress, 3000);
+  else hideProgress();
+
+  if (hasError) {
+    alert('域名查询请求发生错误（可能是网络问题或接口超时），已为您将未成功获取状态的域名归入“超时”列表。您可以点击页面上的批量重试或单个重试。');
+  }
+}
+
+async function runQuery(){
+  var domains = expandDomains();
+  if(!domains.length){ alert('请先输入域名或关键词，并勾选至少一个后缀'); return; }
+  await runQueryInternal(domains, false);
+}
+
+async function retryAllTimeouts(){
+  var list = state.order.filter(function(d){ return state.entries[d].status === 'timeout'; });
+  if(!list.length) return;
+  await runQueryInternal(list, true);
+}
+
+async function retryOne(domain){
+  var e=state.entries[domain]; if(!e || state.querying) return;
+  var old=$('timeoutList').querySelector('.tk[data-d="'+domain+'"]'); if(old) old.remove();
+  if(e.status==='timeout') state.counts.to=Math.max(0,state.counts.to-1);
+  if(state.counts.to===0) $('timeoutWrap').classList.add('hide');
+  e.status='wait'; e.rendered=false; e.retries++; updateCounts();
+
+  const session = 'cf_retry_session_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+  let cookie = '';
+  if (CONFIG.source === 'real') {
+    try {
+      var sessionRes = await fetch((CONFIG.apiBase||'')+'/api/session').then(function(r){
+        if(!r.ok) throw new Error('Session HTTP '+r.status);
+        return r.json();
+      });
+      cookie = sessionRes.cookie || '';
+    } catch(err) {
+      console.error('Fetch session cookie failed for retry:', err);
+    }
+  }
+
+  let round = 0;
+  while (round < SINGLE_RETRY_MAX_ROUNDS) {
+    if (e.status !== 'wait') break;
+
+    if (round > 0) {
+      // 重试时的指数退避时间：第1轮后等 2s，第2轮后等 3.5s...
+      await sleep(Math.min(2000 + (round - 1) * 1500, 6500));
+    }
+
+    const isPoll = round > 0;
+    try {
+      let res;
+      if (CONFIG.source === 'mock') {
+        res = await mockBatchCheck([domain]);
+      } else {
+        res = await fetch((CONFIG.apiBase||'')+'/api/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domains: [domain], session: session, cookie: cookie, isPoll: isPoll, allowWait: true })
+        }).then(function(r){
+          if(!r.ok) throw new Error('HTTP '+r.status);
+          return r.json();
+        });
+      }
+      if (res && res[0]) applyResult(e, res[0]);
+    } catch(err) {
+      console.error('Retry polling round ' + round + ' error:', err);
+    }
+    round++;
+    flushBatch([domain]);
+  }
+
+  if (e.status === 'wait') {
+    e.status = 'timeout';
+  }
+  flushBatch([domain]);
+}
+function setQuerying(on){
+  var b=$('queryBtn');
+  b.disabled=on;
+  b.innerHTML = on ? '<span class="spin"></span> 查询中…' : '查询域名';
+}
+
+/* ---- 规则生成：填入文本框 ---- */
+function applyGenerated(list, truncated){
+  if(!list.length) return;
+  $('input').value = list.join('\n');
+  var note=$('genNote');
+  note.className='note ok';
+  note.textContent='已生成 '+list.length+' 个'+(truncated?'（超上限，仅取前 '+GEN_CAP+' 个）':'')+'，已填入下方，勾选后缀即可查询。';
+  updateMeta();
+}
+function runGenerate(pattern){
+  var r=expand(pattern);
+  var note=$('genNote');
+  if(r.error){ note.className='note err'; note.textContent='规则有误：'+r.error; return; }
+  if(!r.list.length){ note.className='note err'; note.textContent='该规则没有生成任何结果'; return; }
+  applyGenerated(r.list, r.truncated);
+}
+
+/* ===========================================================================
+ * 事件绑定
+ * =========================================================================*/
+function bind(){
+  $('presets').addEventListener('click', function(e){
+    var b=e.target.closest('.chip'); if(!b) return;
+    var p=PRESETS[+b.dataset.i];
+    if(p.pattern){ $('patIpt').value=p.pattern; runGenerate(p.pattern); }
+    else if(p.gen){ var l=p.gen(); $('patIpt').value=''; applyGenerated(l,false); }
+  });
+  $('genBtn').addEventListener('click', function(){ runGenerate($('patIpt').value); });
+  $('patIpt').addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); runGenerate(this.value); } });
+
+  $('input').addEventListener('input', updateMeta);
+  $('clearBtn').addEventListener('click', function(){ $('input').value=''; updateMeta(); });
+
+  $('catSeg').addEventListener('click', function(e){
+    var b=e.target.closest('button'); if(!b) return;
+    state.filter.category=b.dataset.c; state.filter.region='all'; state.expanded=false; renderCats(); renderTlds();
+  });
+  $('regionSeg').addEventListener('click', function(e){
+    var b=e.target.closest('button'); if(!b) return;
+    state.filter.region=b.dataset.r; state.expanded=false; renderCats(); renderTlds();
+  });
+  $('featRow').addEventListener('click', function(e){
+    var b=e.target.closest('.chip[data-feat]'); if(!b) return;
+    var k=b.dataset.feat==='promo'?'onlyPromo':b.dataset.feat;
+    state.filter[k]=!state.filter[k]; state.expanded=false; renderTlds();
+  });
+  $('charSeg').addEventListener('click', function(e){
+    var b=e.target.closest('button'); if(!b) return;
+    state.filter.charLen=+b.dataset.cl; state.expanded=false; renderTlds();
+  });
+  $('kwFilter').addEventListener('input', function(){ state.filter.keyword=this.value; state.expanded=false; renderTlds(); });
+  $('priceMin').addEventListener('input', function(){ state.filter.priceMin=this.value?+this.value:null; state.expanded=false; renderTlds(); });
+  $('priceMax').addEventListener('input', function(){ state.filter.priceMax=this.value?+this.value:null; state.expanded=false; renderTlds(); });
+
+  $('tldGrid').addEventListener('click', function(e){
+    var b=e.target.closest('.tld'); if(!b) return;
+    var t=b.dataset.t;
+    if(state.selectedTlds.has(t)) state.selectedTlds.delete(t); else state.selectedTlds.add(t);
+    renderTlds();
+  });
+  $('selAll').addEventListener('click', function(){ filteredTlds().forEach(function(t){state.selectedTlds.add(t.tld);}); renderTlds(); });
+  $('clrTld').addEventListener('click', function(){ state.selectedTlds.clear(); renderTlds(); });
+  $('expandBtn').addEventListener('click', function(){ state.expanded=true; renderTlds(); });
+
+  $('queryBtn').addEventListener('click', runQuery);
+  $('resultBody').addEventListener('click', function(e){
+    var r=e.target.closest('[data-retry]'); if(r){ retryOne(r.dataset.retry); }
+    var c=e.target.closest('.copy-one'); if(c){
+      var card=c.closest('.rc');
+      if(card){ copyText(card.dataset.d, c); }
+    }
+  });
+  $('copyAvail').addEventListener('click', copyAvail);
+  $('exportAvail').addEventListener('click', exportAvail);
+  $('retryAllTo').addEventListener('click', retryAllTimeouts);
+}
+
+/* ---- 初始化 ---- */
+$('tldBadge').textContent = TLDS.length+' 后缀';
+$('apiEndpointUrl').textContent = window.location.origin + '/api/check';
+$('apiCliDomain').textContent = window.location.origin;
+renderPresets(); renderCats(); renderTlds(); bind(); updateMeta();</script>
+</body>
+</html>

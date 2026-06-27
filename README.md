@@ -23,11 +23,9 @@
 ## 📂 项目结构
 
 ```text
-├── backup_v1/           # 历史版本备份
 ├── build.js             # 编译脚本（将 index.html 编译注入到 worker.js 中）
 ├── index.html           # 前端单页面主程序
 ├── proxy.js             # 本地开发代理服务（Node.js）
-├── test_cookie.js       # 接口及 Cookie 联调试验脚本
 ├── worker_template.js   # Cloudflare Workers 代码模板
 ├── worker.js            # 编译生成的 Cloudflare Workers 部署代码 (自动忽略)
 └── wrangler.toml        # Wrangler 部署配置文件
@@ -65,15 +63,16 @@ node build.js
 
 #### 第二步：部署上线
 
-确保你本地已安装 `wrangler` 并且已登录 Cloudflare 账号：
+- **正式环境部署**（需要本地已配置 Cloudflare API Token 或已登录）：
+  ```bash
+  npx wrangler deploy
+  ```
 
-```bash
-# 部署到生产环境
-npx wrangler deploy
-
-# 或者使用临时账号部署进行测试
-npx wrangler deploy --temporary
-```
+- **临时免密测试部署**（主打推荐 🚀）：
+  如果你目前在无凭据环境（例如 CI 容器或临时的 AI 会话中），可以使用 Wrangler 提供的临时沙箱服务。它会为你生成一个临时的 Cloudflare 域名以及一个有效期为 60 分钟的临时账号认领 URL，无需登录即可立即在公网测试：
+  ```bash
+  npx wrangler deploy --temporary
+  ```
 
 ---
 

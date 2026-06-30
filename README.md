@@ -17,6 +17,7 @@
   - 使用 **指数退避时间探测**（2s、3.5s、5s、6.5s...），为 WHOIS 系统留出充足的后台同步时间。
   - 分批查询之间自动应用冷却等待（1800ms），完美规避上游限流或 IP 屏蔽。
 - **本地调试代理 (Local Proxy)**：内置 Node.js 代理，自动解决浏览器跨域（CORS）与会话 Cookie 获取问题，并提供路径穿越防护及参数校验。
+- **AI Agent / Skill 友好**：提供开放 API 与可选 Skill 说明，便于 Claude Code、Managed Agents 或其它自动化智能体安全分批查询并汇总推荐。
 
 ---
 
@@ -25,11 +26,20 @@
 ```text
 ├── build.js             # 编译脚本（将 index.html 编译注入到 worker.js 中）
 ├── index.html           # 前端单页面主程序
+├── package.json         # 本地开发、构建与部署脚本
 ├── proxy.js             # 本地开发代理服务（Node.js）
+├── skills/              # 可选 AI Skill 说明
+│   └── domain-availability-checker/SKILL.md
 ├── worker_template.js   # Cloudflare Workers 代码模板
-├── worker.js            # 编译生成的 Cloudflare Workers 部署代码 (自动忽略)
-└── wrangler.toml        # Wrangler 部署配置文件
+├── worker.js            # 编译生成的 Cloudflare Workers 部署代码（不会提交）
+└── wrangler.toml        # Wrangler 部署配置文件（部署前自动执行 build.js）
 ```
+
+---
+
+## 🌐 在线体验
+
+- **Worker 地址**：https://domain-tool.steady-september.workers.dev/
 
 ---
 
@@ -44,7 +54,7 @@
 cd domain-tool
 
 # 启动本地代理（默认运行在 5174 端口）
-node proxy.js
+npm run dev
 ```
 
 启动后，在浏览器中打开：**`http://localhost:5174`**，即可开始批量生成并查询域名。
@@ -55,37 +65,44 @@ node proxy.js
 
 #### 第一步：编译打包
 
-编译脚本会将 `index.html` 转化为 JSON 字符串，并自动注入到 `worker_template.js` 对应位置，输出最终的 `worker.js`：
+Wrangler 会在部署前自动运行 `node build.js`，也可以手动编译检查生成结果：
 
 ```bash
-node build.js
+npm run build
 ```
 
 #### 第二步：部署上线
 
 - **正式环境部署**（需要本地已配置 Cloudflare API Token 或已登录）：
   ```bash
-  npx wrangler deploy
+  npm run deploy
   ```
 
 - **临时免密测试部署**（主打推荐 🚀）：
   如果你目前在无凭据环境（例如 CI 容器或临时的 AI 会话中），可以使用 Wrangler 提供的临时沙箱服务。它会为你生成一个临时的 Cloudflare 域名以及一个有效期为 60 分钟的临时账号认领 URL，无需登录即可立即在公网测试：
   ```bash
-  npx wrangler deploy --temporary
+  npm run deploy:temporary
   ```
 
 ---
 
 ## 🛠️ AI Agent 智能体 & 开发者接口 (API)
 
-后端 Worker 及 Proxy 提供了开放式的批量查询接口，已自动处理跨域（CORS）和 Referer/Cookie 伪装，允许 AI 智能体或脚本直接调用。
+后端 Worker 及 Proxy 提供开放式批量查询接口，已自动处理跨域（CORS）与上游 Session Cookie，允许 AI 智能体或脚本直接调用。项目还附带可选 Skill：`skills/domain-availability-checker/SKILL.md`，用于告诉 AI 如何安全分批、低压轮询、解释结果并输出推荐。
+
+### 什么时候使用 Skill？
+
+- 临时脚本或普通开发者调用：直接使用 `/api/check` 即可。
+- Claude Code、Managed Agents 或其它 AI Agent 自动生成候选域名、批量查询、重试超时并做推荐：建议加载 `domain-availability-checker` Skill。
+- Skill 不替代 API，它是给 AI 的使用手册，核心约束是：合法域名校验、低压分批、timeout 单独复查、不要高频轮询。
 
 ### 接口定义
 
 - **接口地址**：`/api/check`
 - **请求方式**：`POST`
 - **数据格式**：`application/json`
-- **请求参数**：
+- **批量上限**：接口最多 60 个域名一批；大量查询建议 25 个一批并串行调用。
+- **请求参数**：普通调用只需要传 `domains`；Worker/Proxy 会自动获取上游会话 Cookie。
   ```json
   {
     "domains": ["apple.ai", "banana.co", "testxyz12345.com"]
@@ -99,13 +116,35 @@ node build.js
     {"status":"success","result":"timeout","domain":"testxyz12345.com"}
   ]
   ```
-  *(注：如果目标域名处于排队中，默认会将其状态设为 `timeout` 以防止外部脚本的高频重复轮询。如需允许中间 wait 状态，请在 payload 中加入 `"allowWait": true`)*
+
+### 状态语义
+
+- `available`：当前看起来可注册。
+- `unavailable`：当前看起来已注册或不可注册。
+- `wait`：上游仍在处理，仅在请求中加入 `allowWait: true` 时返回。
+- `timeout`：本轮没有落定，不能当成已注册，应单独列为“稍后重试”。
+
+### 高级低压轮询
+
+如果脚本需要接收中间态 `wait`，先调用 `GET /api/session` 获取 `cookie`，同一批初始请求和后续轮询复用相同的 `session` 与 `cookie`。首次请求带 `allowWait: true`，后续只查询仍在等待的域名并加 `isPoll: true`。
+
+```json
+{
+  "domains": ["testxyz12345.com"],
+  "session": "stable_batch_session_001",
+  "cookie": "WHMCS...; ipaddress=...",
+  "allowWait": true,
+  "isPoll": true
+}
+```
+
+建议轮询间隔使用退避策略：约 2s、3.5s、5s、6.5s；不要高频死循环。
 
 ---
 
 ## 📝 开源协议与反馈
 
-- **作者邮箱**：qiushuanglong@hotmail.com
+- **在线体验**：https://domain-tool.steady-september.workers.dev/
 - **开源地址**：[github.com/qiushuanglong/domain-tool](https://github.com/qiushuanglong/domain-tool)
 
 欢迎提交 Issue 或 Pull Request，一起让批量域名查询变得更简单、更高效！

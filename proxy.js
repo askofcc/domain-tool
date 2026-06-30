@@ -180,13 +180,23 @@ http.createServer(async function(req, res){
       const body = await readBody(req, MAX_BODY_BYTES);
       const payload = JSON.parse(body);
       const domains = normalizeDomains(payload.domains);
-      const sessionCookie = payload.cookie || ('WHMCSuOQfKxKVe7YU=' + (payload.session || 'local_proxy_session_' + Math.floor(Math.random() * 100000)));
       const isPoll = payload.isPoll === true;
       const allowWait = payload.allowWait === true;
+
+      if (Object.prototype.hasOwnProperty.call(payload, 'cookie') && typeof payload.cookie !== 'string') {
+        rejectBadRequest(res, 'cookie must be a string when provided');
+        return;
+      }
 
       if (!domains) {
         rejectBadRequest(res, 'domains must be an array of max 60 valid domain names');
         return;
+      }
+
+      let sessionCookie = payload.cookie ? payload.cookie.trim() : '';
+      if (!sessionCookie) {
+        await ensureSession();
+        sessionCookie = cookie;
       }
 
       const finalResults = {};
@@ -251,8 +261,12 @@ http.createServer(async function(req, res){
   if(u === '/whois2.php' && req.method === 'POST'){
     try{
       const body = await readBody(req, MAX_BODY_BYTES);
-      await ensureSession();
-      const r = await quyu('POST', '/whois2.php', body);
+      let sessionCookie = typeof req.headers.cookie === 'string' ? req.headers.cookie : '';
+      if (!sessionCookie) {
+        await ensureSession();
+        sessionCookie = cookie;
+      }
+      const r = await quyu('POST', '/whois2.php', body, sessionCookie);
       res.writeHead(200, { 'Content-Type':'application/json; charset=utf-8', 'Access-Control-Allow-Origin':'*' });
       res.end(r.body);
     }catch(e){
@@ -262,17 +276,16 @@ http.createServer(async function(req, res){
     return;
   }
 
-  // 其余按静态文件服务
-  let f;
-  try {
-    f = path.resolve(ROOT, u === '/' ? 'index.html' : decodeURIComponent(u).replace(/^\/+/, ''));
-  } catch(e) {
-    res.writeHead(400); res.end('Bad request'); return;
+  // 其余仅服务前端首页，避免暴露仓库内部文件
+  if (req.method !== 'GET' || (u !== '/' && u !== '/index.html')) {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Not found');
+    return;
   }
-  if(f !== ROOT && !f.startsWith(ROOT + path.sep)){ res.writeHead(403); res.end('Forbidden'); return; }
+  const f = path.join(ROOT, 'index.html');
   fs.readFile(f, function(e, data){
     if(e){ res.writeHead(404); res.end('Not found'); return; }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream' });
+    res.writeHead(200, { 'Content-Type': MIME['.html'] });
     res.end(data);
   });
 }).listen(PORT, function(){

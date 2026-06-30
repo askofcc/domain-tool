@@ -43,6 +43,36 @@ function normalizeDomains(domains) {
   return out;
 }
 
+function appendCookieParts(cookies, value) {
+  if (!value) return;
+  String(value).split(/,(?=\s*[^;,\s]+=)/).forEach(part => {
+    const cookiePart = part.trim().split(";")[0];
+    if (cookiePart) cookies.push(cookiePart);
+  });
+}
+
+async function fetchSessionCookie() {
+  const response = await fetch("https://www.quyu.net/domainchecker.php", {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+    }
+  });
+  if (!response.ok) throw new Error("Session HTTP " + response.status);
+
+  const cookies = [];
+  if (response.headers) {
+    if (typeof response.headers.getSetCookie === "function") {
+      response.headers.getSetCookie().forEach(value => appendCookieParts(cookies, value));
+    } else {
+      appendCookieParts(cookies, response.headers.get("set-cookie"));
+      for (const [key, value] of response.headers.entries()) {
+        if (key.toLowerCase() === "set-cookie") appendCookieParts(cookies, value);
+      }
+    }
+  }
+  return Array.from(new Set(cookies)).join("; ");
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -65,21 +95,7 @@ export default {
     // Fetch dynamic session cookies from quyu.net
     if (url.pathname === "/api/session" && request.method === "GET") {
       try {
-        const response = await fetch("https://www.quyu.net/domainchecker.php", {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
-          }
-        });
-
-        let cookies = [];
-        if (response.headers) {
-          for (const [key, value] of response.headers.entries()) {
-            if (key.toLowerCase() === 'set-cookie') {
-              cookies.push(value.split(';')[0]);
-            }
-          }
-        }
-        const cookieStr = cookies.join('; ');
+        const cookieStr = await fetchSessionCookie();
 
         return new Response(JSON.stringify({ cookie: cookieStr }), {
           status: 200,
@@ -98,15 +114,26 @@ export default {
       try {
         const payload = await request.json();
         const domains = normalizeDomains(payload.domains);
-        const sessionCookie = payload.cookie || `WHMCSuOQfKxKVe7YU=${payload.session || ("cf_worker_session_" + Math.floor(Math.random() * 100000))}`;
         const isPoll = payload.isPoll === true;
         const allowWait = payload.allowWait === true;
+
+        if (Object.prototype.hasOwnProperty.call(payload, "cookie") && typeof payload.cookie !== "string") {
+          return new Response(JSON.stringify({ error: "cookie must be a string when provided" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
 
         if (!domains) {
           return new Response(JSON.stringify({ error: "domains must be an array of max 60 valid domain names" }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
+        }
+
+        let sessionCookie = payload.cookie ? payload.cookie.trim() : "";
+        if (!sessionCookie) {
+          sessionCookie = await fetchSessionCookie();
         }
 
         const finalResults = {};
@@ -204,7 +231,10 @@ export default {
     if (url.pathname === "/whois2.php" && request.method === "POST") {
       try {
         const bodyText = await request.text();
-        const pseudoSession = "WHMCSuOQfKxKVe7YU=cf_worker_session_" + Math.floor(Math.random() * 100000);
+        let sessionCookie = request.headers.get("Cookie") || "";
+        if (!sessionCookie) {
+          sessionCookie = await fetchSessionCookie();
+        }
 
         const response = await fetch("https://www.quyu.net/whois2.php", {
           method: "POST",
@@ -213,7 +243,7 @@ export default {
             "Referer": "https://www.quyu.net/domainchecker.php",
             "X-Requested-With": "XMLHttpRequest",
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "Cookie": pseudoSession,
+            "Cookie": sessionCookie,
             "Accept": "application/json, text/javascript, */*; q=0.01"
           },
           body: bodyText,

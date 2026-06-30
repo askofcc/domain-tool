@@ -272,68 +272,103 @@
     <details style="cursor:pointer">
       <summary style="font-weight:700;font-size:14px;color:var(--ink);user-select:none">✦ AI Agent 智能体 & API 接口调用指南</summary>
       <div style="margin-top:10px;font-size:13.5px;line-height:1.7;color:var(--ink-2);cursor:default" onclick="event.stopPropagation()">
-        <p>本系统支持 AI 智能体（Agent）或自定义脚本直接发起批量域名查询。由于后端 Worker 已自动处理了 Session 维持和 CORS 跨域，调用方<b>无需关注 Cookie 或 Referer 伪装</b>，直接向本服务接口发送标准请求即可：</p>
+        <p>本工具不仅提供网页查询，也提供面向 AI Agent、Claude Code、脚本和自动化工作流的批量域名查询接口。项目内已附带可选 Skill：<code class="mono">skills/domain-availability-checker/SKILL.md</code>，用于告诉智能体如何安全分批、低压轮询、解释结果并输出推荐。</p>
 
-        <p><b>1. 接口规范</b></p>
+        <p><b>什么时候使用 Skill？</b></p>
+        <ul>
+          <li>如果只是临时脚本或普通开发者调用，直接使用 <code class="mono">/api/check</code> 即可。</li>
+          <li>如果希望 AI Agent 自动生成候选域名、分批查询、重试超时并做价值筛选，建议加载本项目的 <code class="mono">domain-availability-checker</code> Skill。</li>
+          <li>Skill 不替代 API，它是给 AI 的使用手册：说明何时调用、如何限流、如何处理 <code>timeout</code>，以及如何给用户汇总结果。</li>
+        </ul>
+
+        <p><b>1. 普通 API 调用</b></p>
         <ul>
           <li><b>接口地址</b>：<code class="mono" id="apiEndpointUrl">/api/check</code></li>
           <li><b>请求方式</b>：<code class="mono">POST</code></li>
           <li><b>请求数据类型</b>：<code class="mono">application/json</code></li>
-          <li><b>请求参数</b>（JSON 结构，最大支持 60 个域名）：
+          <li><b>批量上限</b>：接口最多 60 个域名一批；大量查询建议 25 个一批并串行调用。</li>
+          <li><b>普通请求</b>：Worker / Proxy 会自动处理上游会话，调用方通常只需要传 <code>domains</code>。
             <pre class="mono" style="background:#f1f5f9;padding:10px;border-radius:8px;font-size:12px;overflow:auto;margin:6px 0">{
   "domains": ["apple.ai", "banana.io", "google.com"]
 }</pre>
           </li>
-          <li><b>返回 JSON 结构</b>（接口返回本轮可确认状态；低压策略下暂未确认会返回 timeout，可稍后重试）：
+          <li><b>返回结构</b>：
             <pre class="mono" style="background:#f1f5f9;padding:10px;border-radius:8px;font-size:12px;overflow:auto;margin:6px 0">[
   {"status":"success","result":"available","domain":"apple.ai"},
   {"status":"success","result":"unavailable","domain":"banana.io"},
-  {"status":"success","result":"unavailable","domain":"google.com"}
+  {"status":"success","result":"timeout","domain":"testxyz12345.com"}
 ]</pre>
           </li>
         </ul>
 
-        <p><b>2. AI Agent Tool (工具调用) 提示词与架构设计</b></p>
-        <p>在大模型中，您可以直接将本接口声明为如下格式 of Tool：</p>
+        <p><b>2. 状态语义</b></p>
+        <ul>
+          <li><code>available</code>：当前看起来可注册。</li>
+          <li><code>unavailable</code>：当前看起来已注册或不可注册。</li>
+          <li><code>wait</code>：上游仍在处理，仅在请求中加入 <code>allowWait: true</code> 时返回。</li>
+          <li><code>timeout</code>：本轮没有落定。不要把它当作已注册，应单独列为“稍后重试”。</li>
+        </ul>
+
+        <p><b>3. AI Agent / Skill 执行策略</b></p>
+        <ol style="padding-left:18px;margin:6px 0">
+          <li><b>候选生成</b>：把用户的自然语言规则转成域名列表，例如“三位数字 .ai”生成 <code>000.ai</code> 到 <code>999.ai</code>。</li>
+          <li><b>输入校验</b>：只提交合法完整域名；不要把非法字符静默改造成另一个域名。</li>
+          <li><b>低压分批</b>：大量查询建议 25 个一批、串行请求，批次之间稍作等待，避免触发上游限流。</li>
+          <li><b>结果解释</b>：优先展示 <code>available</code>；<code>timeout</code> 单独列出，说明需要稍后复查。</li>
+          <li><b>价值筛选</b>：对可注册域名按短、好记、好读、关键词匹配、数字规律、品牌契合度等维度给出简短推荐理由。</li>
+        </ol>
+
+        <p><b>4. 高级低压轮询</b></p>
+        <p>普通调用不需要管理 Cookie。如果脚本或 Agent 希望接收中间态 <code>wait</code> 并自行轮询，请使用以下契约：</p>
+        <ol style="padding-left:18px;margin:6px 0">
+          <li>先调用 <code class="mono">GET /api/session</code> 获取 <code>cookie</code>。</li>
+          <li>为同一批次生成稳定的 <code>session</code> 字符串。</li>
+          <li>首次请求带 <code>allowWait: true</code>。</li>
+          <li>后续只对仍为 <code>wait</code> 的域名请求，带 <code>isPoll: true</code>，并复用同一个 <code>session</code> 与 <code>cookie</code>。</li>
+          <li>轮询间隔建议使用退避：约 2s、3.5s、5s、6.5s；不要高频死循环。</li>
+        </ol>
+        <pre class="mono" style="background:#f1f5f9;padding:10px;border-radius:8px;font-size:12px;overflow:auto;margin:6px 0">{
+  "domains": ["testxyz12345.com"],
+  "session": "stable_batch_session_001",
+  "cookie": "WHMCS...; ipaddress=...",
+  "allowWait": true,
+  "isPoll": true
+}</pre>
+
+        <p><b>5. Tool 定义示例</b></p>
+        <p>如果你在自定义 Agent 中声明工具，可使用类似结构：</p>
         <pre class="mono" style="background:#f1f5f9;padding:10px;border-radius:8px;font-size:11.5px;overflow:auto;margin:6px 0">{
   "name": "check_domains",
-  "description": "批量查询域名的可用性（是否未注册）。支持输入以逗号分隔的多个域名。",
-  "parameters": {
+  "description": "批量查询域名可用性。适合在用户需要寻找、生成或筛选可注册域名时调用。大量查询应低压分批，timeout 需单独列为待复查。",
+  "input_schema": {
     "type": "object",
     "properties": {
       "domains": {
         "type": "array",
         "items": { "type": "string" },
-        "description": "域名列表数组，例如: [\"getabc.ai\", \"gochat.io\", \"mycode.com\"]"
+        "description": "完整域名列表，例如 [\"getabc.ai\", \"gochat.io\", \"mycode.com\"]"
       }
     },
     "required": ["domains"]
   }
 }</pre>
-        <p><b>AI 执行策略建议</b>：</p>
-        <ol style="padding-left:18px;margin:6px 0">
-          <li><b>规则翻译</b>：当用户说“我想找个 3 位数字的 .ai 域名”时，大模型应当自动生成全部目标域名列表（如 <code>000.ai, 001.ai, ..., 999.ai</code>）。</li>
-          <li><b>低压调用</b>：大模型或脚本按最多 60 个域名一批调用即可；遇到 <code>timeout</code> 代表本轮暂未确认，建议稍后重试，避免连续高频轮询触发上游限流。</li>
-          <li><b>价值精选</b>：大模型拿到可用（available）域名列表后，可基于自身知识库进行商业价值精选（如优先挑出包含完整单词、纯数字或押韵的域名），提供高质量的推荐理由。</li>
-        </ol>
 
-        <p><b>3. 终端命令行快速查询 (cURL 示例)</b></p>
-        <p>您也可以在本地终端或编写自定义脚本直接通过 <code class="mono">curl</code> 批量查询域名（已自动处理跨域和请求头伪装）：</p>
-        <pre class="mono" style="background:#f1f5f9;padding:10px;border-radius:8px;font-size:12px;overflow:auto;margin:6px 0">curl -X POST <span id="apiCliDomain">http://localhost:5173</span>/api/check \
+        <p><b>6. cURL 快速查询</b></p>
+        <pre class="mono" style="background:#f1f5f9;padding:10px;border-radius:8px;font-size:12px;overflow:auto;margin:6px 0">curl -X POST <span id="apiCliDomain">http://localhost:5174</span>/api/check \
   -H "Content-Type: application/json" \
   -d '{"domains":["apple.ai","google.com","testxyz12345.com"]}'</pre>
-        <p>接口会在云端先执行 DNS 预过滤，再进行低频 WHOIS 查询，以 JSON 格式返回本轮可确认的域名状态。</p>
+        <p>接口会先执行 DNS 预过滤，再对未解析域名进行低频 WHOIS 查询，以 JSON 返回本轮可确认状态。</p>
       </div>
     </details>
   </section>
 
-  <!-- 5. 关于作者 / 反馈 -->
+  <!-- 5. 项目链接 / 反馈 -->
   <section class="card" style="background:#fafafa;border-style:dashed;margin-top:16px">
-    <h2 style="font-size:13.5px;color:var(--ink-2);margin-bottom:8px">关于作者 & 意见反馈</h2>
+    <h2 style="font-size:13.5px;color:var(--ink-2);margin-bottom:8px">项目链接 & 反馈</h2>
     <div style="font-size:12px;color:var(--ink-3);line-height:1.6">
-      作者邮箱：<a href="mailto:qiushuanglong@hotmail.com" style="color:var(--brand-d)">qiushuanglong@hotmail.com</a><br>
+      在线体验：<a href="https://domain-tool.steady-september.workers.dev/" target="_blank" rel="noopener noreferrer" style="color:var(--brand-d)">domain-tool.steady-september.workers.dev</a><br>
       GitHub 开源项目：<a href="https://github.com/qiushuanglong/domain-tool" target="_blank" rel="noopener noreferrer" style="color:var(--brand-d)">github.com/qiushuanglong/domain-tool</a><br>
-      如果您有任何想法或遇到了问题，欢迎直接提交 Issue 或者发送邮件反馈，感谢您的支持！
+      如果您有任何想法或遇到了问题，欢迎直接提交 Issue 或 Pull Request，感谢您的支持！
     </div>
   </section>
 
@@ -522,16 +557,23 @@ var PRESETS=[
 /* ===========================================================================
  * 功能 A —— 关键词 × 后缀 展开
  * =========================================================================*/
+var DOMAIN_RE = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
 function splitDomain(d){ var i=d.indexOf('.'); return i<0?{sld:d,tld:''}:{sld:d.slice(0,i),tld:d.slice(i)}; }
 function expandDomains(){
   var lines=(document.getElementById('input').value||'')
     .split(/[\n,，\s]+/).map(function(s){return s.trim().toLowerCase();}).filter(Boolean);
   var sel=Array.from(state.selectedTlds), out=[], seen={};
   for(var i=0;i<lines.length;i++){
-    var cands = lines[i].indexOf('.')>=0 ? [lines[i]] : sel.map(function(t){return lines[i]+t;});
+    var cands;
+    if(lines[i].indexOf('.')>=0){
+      cands = [lines[i]];
+    } else {
+      var label = lines[i].replace(/[^a-z0-9\-]/g,'');
+      cands = label ? sel.map(function(t){return label+t;}) : [];
+    }
     for(var j=0;j<cands.length;j++){
-      var clean=cands[j].replace(/[^a-z0-9.\-]/g,'');
-      if(clean && clean.indexOf('.')>=0 && !seen[clean]){ seen[clean]=1; out.push(clean); }
+      var domain=cands[j];
+      if(DOMAIN_RE.test(domain) && !seen[domain]){ seen[domain]=1; out.push(domain); }
     }
   }
   return out;
@@ -961,61 +1003,67 @@ async function retryAllTimeouts(){
 
 async function retryOne(domain){
   var e=state.entries[domain]; if(!e || state.querying) return;
-  var old=$('timeoutList').querySelector('.tk[data-d="'+domain+'"]'); if(old) old.remove();
-  if(e.status==='timeout') state.counts.to=Math.max(0,state.counts.to-1);
-  if(state.counts.to===0) $('timeoutWrap').classList.add('hide');
-  e.status='wait'; e.rendered=false; e.retries++; updateCounts();
+  state.querying = true;
+  setQuerying(true);
+  try {
+    var old=$('timeoutList').querySelector('.tk[data-d="'+domain+'"]'); if(old) old.remove();
+    if(e.status==='timeout') state.counts.to=Math.max(0,state.counts.to-1);
+    if(state.counts.to===0) $('timeoutWrap').classList.add('hide');
+    e.status='wait'; e.rendered=false; e.retries++; updateCounts();
 
-  const session = 'cf_retry_session_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
-  let cookie = '';
-  if (CONFIG.source === 'real') {
-    try {
-      var sessionRes = await fetch((CONFIG.apiBase||'')+'/api/session').then(function(r){
-        if(!r.ok) throw new Error('Session HTTP '+r.status);
-        return r.json();
-      });
-      cookie = sessionRes.cookie || '';
-    } catch(err) {
-      console.error('Fetch session cookie failed for retry:', err);
-    }
-  }
-
-  let round = 0;
-  while (round < SINGLE_RETRY_MAX_ROUNDS) {
-    if (e.status !== 'wait') break;
-
-    if (round > 0) {
-      // 重试时的指数退避时间：第1轮后等 2s，第2轮后等 3.5s...
-      await sleep(Math.min(2000 + (round - 1) * 1500, 6500));
-    }
-
-    const isPoll = round > 0;
-    try {
-      let res;
-      if (CONFIG.source === 'mock') {
-        res = await mockBatchCheck([domain]);
-      } else {
-        res = await fetch((CONFIG.apiBase||'')+'/api/check', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ domains: [domain], session: session, cookie: cookie, isPoll: isPoll, allowWait: true })
-        }).then(function(r){
-          if(!r.ok) throw new Error('HTTP '+r.status);
+    const session = 'cf_retry_session_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+    let cookie = '';
+    if (CONFIG.source === 'real') {
+      try {
+        var sessionRes = await fetch((CONFIG.apiBase||'')+'/api/session').then(function(r){
+          if(!r.ok) throw new Error('Session HTTP '+r.status);
           return r.json();
         });
+        cookie = sessionRes.cookie || '';
+      } catch(err) {
+        console.error('Fetch session cookie failed for retry:', err);
       }
-      if (res && res[0]) applyResult(e, res[0]);
-    } catch(err) {
-      console.error('Retry polling round ' + round + ' error:', err);
     }
-    round++;
-    flushBatch([domain]);
-  }
 
-  if (e.status === 'wait') {
-    e.status = 'timeout';
+    let round = 0;
+    while (round < SINGLE_RETRY_MAX_ROUNDS) {
+      if (e.status !== 'wait') break;
+
+      if (round > 0) {
+        await sleep(Math.min(2000 + (round - 1) * 1500, 6500));
+      }
+
+      const isPoll = round > 0;
+      try {
+        let res;
+        if (CONFIG.source === 'mock') {
+          res = await mockBatchCheck([domain]);
+        } else {
+          res = await fetch((CONFIG.apiBase||'')+'/api/check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ domains: [domain], session: session, cookie: cookie, isPoll: isPoll, allowWait: true })
+          }).then(function(r){
+            if(!r.ok) throw new Error('HTTP '+r.status);
+            return r.json();
+          });
+        }
+        if (res && res[0]) applyResult(e, res[0]);
+      } catch(err) {
+        console.error('Retry polling round ' + round + ' error:', err);
+      }
+      round++;
+      flushBatch([domain]);
+    }
+
+    if (e.status === 'wait') {
+      e.status = 'timeout';
+    }
+    flushBatch([domain]);
+  } finally {
+    state.querying = false;
+    setQuerying(false);
   }
-  flushBatch([domain]);
 }
 function setQuerying(on){
   var b=$('queryBtn');

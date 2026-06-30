@@ -144,6 +144,6 @@ npm run build
 
 ## 📝 开源协议与反馈
 
-- **开源地址**：[github.com/qiushuanglong/domain-tool](https://github.com/qiushuanglong/domain-tool)
+- **开源地址**：[github.com/askofcc/domain-tool](https://github.com/askofcc/domain-tool)
 
 欢迎提交 Issue 或 Pull Request，一起让批量域名查询变得更简单、更高效！

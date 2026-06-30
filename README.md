@@ -39,7 +39,7 @@
 
 ## 🌐 在线体验
 
-- **Worker 地址**：https://domain-tool.steady-september.workers.dev/
+部署完成后，可将自己的 Cloudflare Workers 地址填写到这里。临时测试部署会由 Wrangler 自动生成 60 分钟内可认领的 Worker 地址。
 
 ---
 
@@ -144,7 +144,6 @@ npm run build
 
 ## 📝 开源协议与反馈
 
-- **在线体验**：https://domain-tool.steady-september.workers.dev/
 - **开源地址**：[github.com/qiushuanglong/domain-tool](https://github.com/qiushuanglong/domain-tool)
 
 欢迎提交 Issue 或 Pull Request，一起让批量域名查询变得更简单、更高效！
